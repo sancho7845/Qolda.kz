@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Explicit check to see if request is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Role Lookup function
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.uid == 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        )
+      );
+    }
+
+    // --- ENTITY SCHEMA VALIDATORS ---
+
+    // User Validator
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 150 &&
+             data.city is string && data.city.size() <= 100 &&
+             (data.phone == null || (data.phone is string && data.phone.size() <= 30)) &&
+             (data.avatarId == null || (data.avatarId is string && data.avatarId.size() <= 50)) &&
+             (data.rating == null || (data.rating is number)) &&
+             (data.reviewsCount == null || (data.reviewsCount is int)) &&
+             (data.completedTasksCount == null || (data.completedTasksCount is int)) &&
+             (data.acceptedTasksCount == null || (data.acceptedTasksCount is int)) &&
+             data.isAdmin is bool &&
+             data.isBanned is bool;
+    }
+
+    // Task Validator
+    function isValidTask(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.title is string && data.title.size() <= 120 &&
+             data.description is string && data.description.size() <= 2000 &&
+             data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|other)$') &&
+             data.priority is string && data.priority.matches('^(high|medium|low)$') &&
+             data.deadline is string && data.deadline.size() <= 50 &&
+             data.status is string && data.status.matches('^(new|in_progress|completed)$') &&
+             data.city is string && data.city.size() <= 100 &&
+             data.creatorId is string && data.creatorId.size() <= 128 &&
+             data.creatorName is string && data.creatorName.size() <= 100 &&
+             (data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 50)) &&
+             (data.volunteerId == null || (data.volunteerId is string && data.volunteerId.size() <= 128)) &&
+             (data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 100)) &&
+             (data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 50)) &&
+             (data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1000));
+    }
+
+    // Review Validator
+    function isValidReview(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.taskId is string && data.taskId.size() <= 128 &&
+             data.reviewerId is string && data.reviewerId.size() <= 128 &&
+             data.reviewerName is string && data.reviewerName.size() <= 100 &&
+             (data.reviewerAvatar == null || (data.reviewerAvatar is string && data.reviewerAvatar.size() <= 50)) &&
+             data.targetUserId is string && data.targetUserId.size() <= 128 &&
+             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+             data.text is string && data.text.size() <= 1000;
+    }
+
+    // Notification Validator
+    function isValidNotification(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 150 &&
+             data.message is string && data.message.size() <= 500 &&
+             (data.taskId == null || (data.taskId is string && data.taskId.size() <= 128)) &&
+             data.type is string && data.type.matches('^(task_accepted|task_completed|new_review|system)$') &&
+             data.isRead is bool;
+    }
+
+    // Report Validator
+    function isValidReport(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.reporterId is string && data.reporterId.size() <= 128 &&
+             data.reporterName is string && data.reporterName.size() <= 100 &&
+             data.targetType is string && data.targetType.matches('^(user|task)$') &&
+             data.targetId is string && data.targetId.size() <= 128 &&
+             data.targetLabel is string && data.targetLabel.size() <= 200 &&
+             data.reason is string && data.reason.size() <= 1000 &&
+             data.status is string && data.status.matches('^(pending|resolved)$');
+    }
+
+    // --- COLLECTION ROUTES ---
+
+    // 1. Users Profiles Route
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) &&
+                    (incoming().isAdmin == false || request.auth.token.email == 'sanjaresenalin@gmail.com');
+      allow update: if isSignedIn() && isValidUser(incoming()) && (
+                    // Self update (block switching isAdmin/isBanned manually)
+                    (request.auth.uid == userId && 
+                     incoming().isAdmin == existing().isAdmin && 
+                     incoming().isBanned == existing().isBanned) ||
+                    // Admin update
+                    isAdmin()
+                  );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Tasks Route
+    match /tasks/{taskId} {
+      allow read: if isSignedIn() && (
+                    request.auth.uid == existing().creatorId || 
+                    request.auth.uid == existing().volunteerId || 
+                    existing().status == 'new' || 
+                    isAdmin()
+                  );
+      allow create: if isSignedIn() && isValidId(taskId) && isValidTask(incoming()) &&
+                    incoming().creatorId == request.auth.uid && incoming().status == 'new';
+      allow update: if isSignedIn() && isValidId(taskId) && isValidTask(incoming()) && (
+                    // Creator updating details (cannot modify status to completed directly from new)
+                    (request.auth.uid == existing().creatorId && existing().status == 'new' && incoming().status == 'new') ||
+                    // Volunteer accepting task
+                    (existing().status == 'new' && incoming().status == 'in_progress' && incoming().volunteerId == request.auth.uid) ||
+                    // Volunteer opting out from accepted task (reset to new)
+                    (existing().status == 'in_progress' && incoming().status == 'new' && existing().volunteerId == request.auth.uid && incoming().volunteerId == null) ||
+                    // Creator confirming completion
+                    (request.auth.uid == existing().creatorId && existing().status == 'in_progress' && incoming().status == 'completed') ||
+                    // Admin override
+                    isAdmin()
+                  );
+      allow delete: if isSignedIn() && isValidId(taskId) && (
+                    (request.auth.uid == existing().creatorId && existing().status == 'new') || 
+                    isAdmin()
+                  );
+    }
+
+    // 3. Reviews Route
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reviewId) && isValidReview(incoming()) &&
+                    incoming().reviewerId == request.auth.uid && incoming().reviewerId != incoming().targetUserId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // 4. Notifications Route
+    match /notifications/{notificationId} {
+      allow get: if isSignedIn() && isValidId(notificationId) && 
+                  (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && 
+                  (existing().userId == request.auth.uid || isAdmin());
+      allow delete: if isSignedIn() && isValidId(notificationId) && 
+                     (existing().userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(notificationId) && isValidNotification(incoming());
+      allow update: if isSignedIn() && isValidId(notificationId) && 
+                    (existing().userId == request.auth.uid || isAdmin()) && 
+                    isValidNotification(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+    }
+
+    // 5. Reports Route
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(incoming()) &&
+                    incoming().reporterId == request.auth.uid && incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+  }
+}

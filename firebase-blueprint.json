@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Public and private user profile information for Qolda.kz platform",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The Firebase Auth UID of the user" },
+        "name": { "type": "string", "description": "The full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address of the user (PII)" },
+        "phone": { "type": "string", "description": "Phone number for communication (PII)" },
+        "city": { "type": "string", "description": "City of residence in Kazakhstan" },
+        "avatarId": { "type": "string", "description": "ID of avatar choice from pre-defined list" },
+        "rating": { "type": "number", "description": "Average rating from 1 to 5" },
+        "reviewsCount": { "type": "integer", "description": "Number of received reviews" },
+        "completedTasksCount": { "type": "integer", "description": "Number of successfully completed and confirmed volunteer tasks" },
+        "acceptedTasksCount": { "type": "integer", "description": "Total tasks accepted as volunteer" },
+        "isAdmin": { "type": "boolean", "description": "Boolean checking if user has administrator privileges" },
+        "isBanned": { "type": "boolean", "description": "Boolean checking if user has been suspended from Qolda.kz" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when this user profile was created" }
+      },
+      "required": ["uid", "name", "email", "city", "isAdmin", "isBanned"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A single help request task created on Qolda.kz",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique task ID" },
+        "title": { "type": "string", "description": "Brief description label of the task" },
+        "description": { "type": "string", "description": "Full details of what is needed" },
+        "category": { "type": "string", "enum": ["elderly", "delivery", "moving", "education", "technology", "healthcare", "other"], "description": "One of seven main categories" },
+        "priority": { "type": "string", "enum": ["high", "medium", "low"], "description": "Priority of the task" },
+        "deadline": { "type": "string", "format": "date-time", "description": "Deadline for completion" },
+        "status": { "type": "string", "enum": ["new", "in_progress", "completed"], "description": "Task status flow" },
+        "city": { "type": "string", "description": "City where assistance is required" },
+        "creatorId": { "type": "string", "description": "UID of help-seeker" },
+        "creatorName": { "type": "string", "description": "Name of help-seeker" },
+        "creatorAvatar": { "type": "string", "description": "Avatar index of help-seeker" },
+        "volunteerId": { "type": "string", "description": "UID of the accepted volunteer" },
+        "volunteerName": { "type": "string", "description": "Name of the volunteer" },
+        "volunteerAvatar": { "type": "string", "description": "Avatar index of the volunteer" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["id", "title", "description", "category", "priority", "deadline", "status", "city", "creatorId", "creatorName", "createdAt", "updatedAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A review written after task completion to rate the volunteer or creator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique review ID" },
+        "taskId": { "type": "string", "description": "Associated completed task ID" },
+        "reviewerId": { "type": "string", "description": "User UID of who left the review" },
+        "reviewerName": { "type": "string", "description": "Name of who left the review" },
+        "reviewerAvatar": { "type": "string", "description": "Avatar of reviewer" },
+        "targetUserId": { "type": "string", "description": "User UID receiving the review" },
+        "rating": { "type": "integer", "minimum": 1, "maximum": 5, "description": "Star count 1 to 5" },
+        "text": { "type": "string", "description": "Detailed review notes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission time" }
+      },
+      "required": ["id", "taskId", "reviewerId", "reviewerName", "targetUserId", "rating", "text", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification event logs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique notification ID" },
+        "userId": { "type": "string", "description": "Recipient user profile UID" },
+        "title": { "type": "string", "description": "Kazakh title of the notification" },
+        "message": { "type": "string", "description": "Kazakh contents description" },
+        "taskId": { "type": "string", "description": "Associated task identifier if any" },
+        "type": { "type": "string", "enum": ["task_accepted", "task_completed", "new_review", "system"], "description": "Notification category" },
+        "isRead": { "type": "boolean", "description": "Self-explanatory status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["id", "userId", "title", "message", "type", "isRead", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Report logs filed against tasks or users for content moderation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique report record ID" },
+        "reporterId": { "type": "string", "description": "Reporter account UID" },
+        "reporterName": { "type": "string", "description": "Reporter identity" },
+        "targetType": { "type": "string", "enum": ["user", "task"], "description": "Type of target" },
+        "targetId": { "type": "string", "description": "Target identity ID" },
+        "targetLabel": { "type": "string", "description": "Name or text summary under report" },
+        "reason": { "type": "string", "description": "Explanation why flagged" },
+        "status": { "type": "string", "enum": ["pending", "resolved"], "description": "Moderation status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Filing timestamp" }
+      },
+      "required": ["id", "reporterId", "reporterName", "targetType", "targetId", "targetLabel", "reason", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles containing statistics, status and roles"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Help request tasks matching seekers and volunteers"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Task completion user evaluations"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Targeted notification updates for users"
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Flagged posts and users for admin moderations"
+    }
+  }
+}

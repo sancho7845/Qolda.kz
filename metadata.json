@@ -1,0 +1,6 @@
+{
+  "name": "Qolda.kz",
+  "description": "Қолдау мен көмекке мұқтаж жандарды және еріктілерді (волонтерлерді) байланыстыратын қазақстандық әлеуметтік платформа.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
