@@ -34,7 +34,11 @@ export async function createTask(
   creator: UserProfile,
   attachmentUrl?: string,
   attachmentName?: string,
-  attachmentSize?: number
+  attachmentSize?: number,
+  address?: string,
+  latitude?: number | null,
+  longitude?: number | null,
+  locationSource?: 'manual' | 'geolocation' | null
 ): Promise<string> {
   const taskId = generateId();
   const taskPath = `tasks/${taskId}`;
@@ -63,7 +67,11 @@ export async function createTask(
     ownerPhone: creator.phone || '',
     attachmentUrl: attachmentUrl || '',
     attachmentName: attachmentName || '',
-    attachmentSize: attachmentSize || 0
+    attachmentSize: attachmentSize || 0,
+    address: address || '',
+    latitude: latitude ?? null,
+    longitude: longitude ?? null,
+    locationSource: locationSource ?? null
   };
 
   try {
@@ -467,6 +475,9 @@ export async function submitReview(
 
 export async function getUserReviews(userId: string): Promise<Review[]> {
   const reviewsCollection = 'reviews';
+  if (!auth.currentUser || !userId) {
+    return [];
+  }
   try {
     const q = query(
       collection(db, 'reviews'), 
@@ -481,6 +492,7 @@ export async function getUserReviews(userId: string): Promise<Review[]> {
     return reviews;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, reviewsCollection);
+    return [];
   }
 }
 
@@ -518,6 +530,9 @@ export async function createNotification(
 
 export async function getUserNotifications(userId: string): Promise<Notification[]> {
   const notifCollection = 'notifications';
+  if (!auth.currentUser || !userId) {
+    return [];
+  }
   try {
     const q = query(
       collection(db, 'notifications'),
@@ -532,6 +547,7 @@ export async function getUserNotifications(userId: string): Promise<Notification
     return notifications;
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, notifCollection);
+    return [];
   }
 }
 

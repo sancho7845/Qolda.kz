@@ -84,6 +84,10 @@ export interface Task {
   ownerPhone?: string;
   attachmentName?: string;
   attachmentSize?: number;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  locationSource?: 'manual' | 'geolocation' | null;
 }
 
 export interface Review {

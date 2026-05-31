@@ -85,6 +85,10 @@ function QoldaApp() {
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [newTaskAddress, setNewTaskAddress] = useState('');
+  const [newTaskLatitude, setNewTaskLatitude] = useState<number | null>(null);
+  const [newTaskLongitude, setNewTaskLongitude] = useState<number | null>(null);
+  const [newTaskLocationSource, setNewTaskLocationSource] = useState<'manual' | 'geolocation' | null>(null);
 
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -348,6 +352,28 @@ function QoldaApp() {
     );
   };
 
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Сіздің браузеріңіз геолокацияны қолдамайды.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setNewTaskLatitude(lat);
+        setNewTaskLongitude(lng);
+        setNewTaskLocationSource('geolocation');
+        alert(`Орналасқан жер анықталды! Координаттар: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        alert("Орналасқан жерді анықтауға рұқсат берілмеді. Мекенжайды қолмен енгізіңіз.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userProfile) {
@@ -464,7 +490,11 @@ function QoldaApp() {
         userProfile,
         attachmentUrl || undefined,
         attachmentName || undefined,
-        attachmentSize || undefined
+        attachmentSize || undefined,
+        newTaskAddress,
+        newTaskLatitude,
+        newTaskLongitude,
+        newTaskLocationSource
       );
 
       // reset states
@@ -472,6 +502,10 @@ function QoldaApp() {
       setNewTaskDesc('');
       setNewTaskDeadline('');
       setAttachmentFile(null);
+      setNewTaskAddress('');
+      setNewTaskLatitude(null);
+      setNewTaskLongitude(null);
+      setNewTaskLocationSource(null);
       
       // reset filters to ensure newly created task shows up
       setSearchQuery('');
@@ -1428,6 +1462,41 @@ function QoldaApp() {
                     </div>
                   </div>
 
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-850/50 rounded-2xl border border-neutral-150 dark:border-neutral-800 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450 flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-teal-600" />
+                        Нақты мекенжайы және бағыт алу / Exact Address & Location:
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleUseMyLocation}
+                        className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 dark:text-teal-300 border border-teal-100 dark:border-teal-850 px-2.5 py-1.5 rounded-xl font-extrabold flex items-center gap-1 cursor-pointer transition-all hover:scale-[1.01]"
+                      >
+                        🧭 Менің орналасқан жерімді қолдану
+                      </button>
+                    </div>
+
+                    <input
+                      type="text"
+                      value={newTaskAddress}
+                      onChange={(e) => {
+                        setNewTaskAddress(e.target.value);
+                        if (!newTaskLocationSource || newTaskLocationSource === 'geolocation') {
+                          setNewTaskLocationSource('manual');
+                        }
+                      }}
+                      placeholder="Мекенжайды енгізіңіз"
+                      className="w-full p-3 rounded-xl border border-neutral-200 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none font-semibold placeholder:text-neutral-450"
+                    />
+
+                    {newTaskLatitude && newTaskLongitude && (
+                      <div className="text-[10px] text-teal-650 dark:text-teal-400 font-bold flex items-center gap-1 bg-teal-50/50 dark:bg-teal-950/20 px-2.5 py-1.5 rounded-xl border border-teal-150/30">
+                        <span>📍 GPS Координаттары қабылданды ({newTaskLocationSource === 'geolocation' ? 'Геолокация' : 'Қолмен'}): {newTaskLatitude.toFixed(6)}, {newTaskLongitude.toFixed(6)}</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450">Толық түсіндірме мәліметі (Егжей-тегжейлі):</label>
                     <textarea
@@ -1952,13 +2021,29 @@ service firebase.storage {
                     </div>
 
                     {/* Meta info grid */}
-                    <div className="grid grid-cols-2 gap-3 p-4 bg-white/15 dark:bg-neutral-950/15 border border-white/20 dark:border-neutral-800/20 rounded-xl text-xs">
-                      <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-350">
-                        <MapPin className="w-4 h-4 text-neutral-400 shrink-0" />
-                        <div>
-                          <div className="text-[10px] text-neutral-400">Өтетін орны (Қала):</div>
-                          <div className="font-bold">{selectedTask.city}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-white/15 dark:bg-neutral-950/15 border border-white/20 dark:border-neutral-800/20 rounded-xl text-xs">
+                      <div className="flex items-center justify-between gap-2 text-neutral-600 dark:text-neutral-350">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <MapPin className="w-4 h-4 text-neutral-400 shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-[10px] text-neutral-400">Өтетін орны (Қала / Мекенжай):</div>
+                            <div className="font-bold truncate" title={`${selectedTask.city}${selectedTask.address ? `, ${selectedTask.address}` : ''}`}>
+                              {selectedTask.city}{selectedTask.address ? `, ${selectedTask.address}` : ''}
+                            </div>
+                          </div>
                         </div>
+                        <a
+                          href={
+                            selectedTask.latitude && selectedTask.longitude
+                              ? `https://www.google.com/maps/search/?api=1&query=${selectedTask.latitude},${selectedTask.longitude}`
+                              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedTask.city + ' ' + (selectedTask.address || ''))}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 dark:text-teal-300 border border-teal-100 dark:border-teal-850 px-2 py-1 rounded-lg font-bold shrink-0 flex items-center gap-0.5"
+                        >
+                          🗺️ Карта
+                        </a>
                       </div>
 
                       <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-350">
@@ -2055,49 +2140,7 @@ service firebase.storage {
 
                       {/* Display Creator's Phone explicitly if user is the assigned volunteer */}
                       {selectedTask.volunteerId === currentUser.uid && (
-                        <div className="p-3 bg-emerald-58 bg-emerald-500/10 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-center text-xs font-bold border border-emerald-500/20 dark:border-emerald-900/10 flex items-center justify-center gap-2">
-                          <Smartphone className="w-4 h-4 text-emerald-600" />
-                          <span>Байланыс телефоны: <strong className="text-sm select-all">{selectedTask.creatorName} телефон номерлерімен сөйлесуге ашық!</strong></span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Contact Integration */}
-                    <div className="border-t border-white/20 dark:border-neutral-800/35 pt-4 space-y-3">
-                      <h4 className="font-extrabold text-xs text-neutral-700 dark:text-neutral-300">Тапсырма иесі (Көмек сұраушы):</h4>
-                      <div className="flex items-center justify-between p-3.5 bg-neutral-50 dark:bg-neutral-855 border border-neutral-100 dark:border-neutral-800 rounded-xl">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-2xl ${AVATAR_STYLING[selectedTask.creatorAvatar || 'avatar_1']}`}>
-                            {AVATAR_EMOJIS[selectedTask.creatorAvatar || 'avatar_1']}
-                          </div>
-                          <div>
-                            <div className="font-bold text-neutral-800 dark:text-neutral-100">{selectedTask.creatorName}</div>
-                            <div className="text-[9px] text-neutral-450 uppercase font-bold">Профиль бақылауында</div>
-                          </div>
-                        </div>
-
-                        {/* Dialing and Coordination is only visible to creator, volunteer or admins as per security standard */}
-                        {(selectedTask.creatorId === currentUser.uid || selectedTask.volunteerId === currentUser.uid || userProfile?.isAdmin) ? (
-                          <div className="flex items-center gap-2">
-                            <a 
-                              href={`tel:${selectedTask.creatorId === currentUser.uid ? userProfile?.phone : 'телефон байланысы'}`} 
-                              className="p-2 bg-teal-50 hover:bg-teal-100 text-teal-650 rounded-xl transition-all"
-                              title="Телефон шалу"
-                            >
-                              <PhoneCall className="w-4 h-4" />
-                            </a>
-                            <span className="text-xs font-extrabold text-teal-600">Тегін байланыс рұқсат</span>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-neutral-400 text-right shrink-0">
-                            Телефон байланысы тек <br /><strong>Ерікті орнында көрсетіледі</strong>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Display Creator's Phone explicitly if user is the assigned volunteer */}
-                      {selectedTask.volunteerId === currentUser.uid && (
-                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-center text-xs font-bold border border-emerald-100 dark:border-emerald-990 flex items-center justify-center gap-2">
+                        <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 rounded-xl text-center text-xs font-bold border border-emerald-500/20 dark:border-emerald-900/10 flex items-center justify-center gap-2">
                           <Smartphone className="w-4 h-4 text-emerald-600" />
                           <span>Байланыс телефоны: <strong className="text-sm select-all">{selectedTask.creatorName} телефон номерлерімен сөйлесуге ашық!</strong></span>
                         </div>

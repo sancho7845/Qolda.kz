@@ -89,11 +89,29 @@ export default function TaskCard({
 
         {/* Info Grid */}
         <div className="grid grid-cols-2 gap-y-2.5 gap-x-2 text-xs text-neutral-500 dark:text-neutral-400 border-t border-white/20 dark:border-neutral-805/30 pt-3">
-          <div className="flex items-center gap-1.5 truncate">
-            <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-            <span>{task.city}</span>
+          <div className="col-span-2 space-y-1">
+            <div className="flex items-center justify-between gap-1.5 w-full">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                <span className="truncate font-semibold text-neutral-800 dark:text-neutral-200" title={`${task.city}${task.address ? `, ${task.address}` : ''}`}>
+                  {task.city}{task.address ? `, ${task.address}` : ''}
+                </span>
+              </div>
+              <a
+                href={
+                  task.latitude && task.longitude
+                    ? `https://www.google.com/maps/search/?api=1&query=${task.latitude},${task.longitude}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(task.city + ' ' + (task.address || ''))}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-bold underline whitespace-nowrap shrink-0 flex items-center gap-0.5"
+              >
+                🗺️ Картадан көру
+              </a>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 truncate">
+          <div className="col-span-2 flex items-center gap-1.5 truncate">
             <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
             <span className="truncate">{formatDate(task.deadline)}</span>
           </div>

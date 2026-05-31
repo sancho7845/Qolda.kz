@@ -39,6 +39,50 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [selectedUserForFiles, setSelectedUserForFiles] = useState<UserProfile | null>(null);
 
+  // Sign-up date range filter states
+  const [userStartDate, setUserStartDate] = useState<string>('');
+  const [userEndDate, setUserEndDate] = useState<string>('');
+
+  const setDatePreset = (preset: 'today' | '7days' | 'thismonth' | 'all') => {
+    const now = new Date();
+    if (preset === 'today') {
+      const todayStr = now.toISOString().split('T')[0];
+      setUserStartDate(todayStr);
+      setUserEndDate(todayStr);
+    } else if (preset === '7days') {
+      const past = new Date();
+      past.setDate(now.getDate() - 7);
+      setUserStartDate(past.toISOString().split('T')[0]);
+      setUserEndDate(now.toISOString().split('T')[0]);
+    } else if (preset === 'thismonth') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      setUserStartDate(firstDay.toISOString().split('T')[0]);
+      setUserEndDate(now.toISOString().split('T')[0]);
+    } else {
+      setUserStartDate('');
+      setUserEndDate('');
+    }
+  };
+
+  const filteredUsers = users.filter((u) => {
+    if (!u.createdAt) return true;
+    const regDate = new Date(u.createdAt);
+    
+    if (userStartDate) {
+      const start = new Date(userStartDate);
+      start.setHours(0, 0, 0, 0);
+      if (regDate < start) return false;
+    }
+    
+    if (userEndDate) {
+      const end = new Date(userEndDate);
+      end.setHours(23, 59, 59, 999);
+      if (regDate > end) return false;
+    }
+    
+    return true;
+  });
+
   const loadAdminData = async () => {
     setLoading(true);
     try {
@@ -340,97 +384,225 @@ export default function AdminPanel() {
 
           {/* USERS VIEW */}
           {activeTab === 'users' && (
-            <div className="glass-card rounded-3xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-neutral-500 dark:text-neutral-400">
-                  <thead className="bg-neutral-50 dark:bg-neutral-800/40 text-[10px] uppercase font-bold text-neutral-400 border-b border-neutral-150 dark:border-neutral-800">
-                    <tr>
-                      <th className="px-5 py-3.5">Аты-жөні / Эл.пошта / Тіркелген күні</th>
-                      <th className="px-5 py-3.5">Қала</th>
-                      <th className="px-5 py-3.5">Статистика</th>
-                      <th className="px-5 py-3.5">Жүктелген файлдар</th>
-                      <th className="px-5 py-3.5">Рейтинг</th>
-                      <th className="px-5 py-3.5">Админ бе?</th>
-                      <th className="px-5 py-3.5 text-right">Әрекеттер</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                    {users.map((u) => {
-                      const userUploadedFiles = tasks.filter(t => t.creatorId === u.uid && t.attachmentUrl);
-                      const fileCount = userUploadedFiles.length;
-                      const formattedRegDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('kk', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                      }) : 'Белгісіз';
+            <div className="space-y-4">
+              {/* Date Filters Panel */}
+              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl shadow-xs space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-teal-650 shrink-0" />
+                      Тіркелу уақыты бойынша сүзгілеу / Filter by registration date
+                    </h3>
+                    <p className="text-[10px] text-neutral-400">
+                      Пайдаланушылардың жүйеге тіркелген уақыт аралығын таңдаңыз
+                    </p>
+                  </div>
+                  
+                  {/* Quick presets */}
+                  <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                    <button
+                      onClick={() => setDatePreset('all')}
+                      className={`px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        !userStartDate && !userEndDate
+                          ? 'bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-900'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-250 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                      }`}
+                    >
+                      Барлығы / All Time
+                    </button>
+                    <button
+                      onClick={() => setDatePreset('today')}
+                      className={`px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        (() => {
+                          const todayStr = new Date().toISOString().split('T')[0];
+                          return userStartDate === todayStr && userEndDate === todayStr;
+                        })()
+                          ? 'bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-900'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-250 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                      }`}
+                    >
+                      Бүгін / Today
+                    </button>
+                    <button
+                      onClick={() => setDatePreset('7days')}
+                      className={`px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        (() => {
+                          const now = new Date();
+                          const past = new Date();
+                          past.setDate(now.getDate() - 7);
+                          const pastStr = past.toISOString().split('T')[0];
+                          const nowStr = now.toISOString().split('T')[0];
+                          return userStartDate === pastStr && userEndDate === nowStr;
+                        })()
+                          ? 'bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-900'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-250 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                      }`}
+                    >
+                      Соңғы 7 күн / Last 7 Days
+                    </button>
+                    <button
+                      onClick={() => setDatePreset('thismonth')}
+                      className={`px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer ${
+                        (() => {
+                          const now = new Date();
+                          const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                          const firstDayStr = firstDay.toISOString().split('T')[0];
+                          const nowStr = now.toISOString().split('T')[0];
+                          return userStartDate === firstDayStr && userEndDate === nowStr;
+                        })()
+                          ? 'bg-neutral-900 border-neutral-900 text-white dark:bg-white dark:border-white dark:text-neutral-900'
+                          : 'bg-neutral-50 dark:bg-neutral-800 border-neutral-250 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-750'
+                      }`}
+                    >
+                      Осы ай / This Month
+                    </button>
+                  </div>
+                </div>
 
-                      return (
-                        <tr key={u.uid} className={`hover:bg-neutral-50/50 dark:hover:bg-neutral-850/20 ${u.isBanned ? 'bg-rose-50/20' : ''}`}>
-                          <td className="px-5 py-4">
-                            <div className="font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
-                              {u.name}
-                              {u.isBanned && (
-                                <span className="bg-rose-100 text-rose-800 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
-                                  Бұғатталған
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-neutral-400 mt-0.5">{u.email}</div>
-                            <div className="text-[9px] text-neutral-400/80 mt-1 flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              Тіркелді: {formattedRegDate}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-neutral-700 dark:text-neutral-300 font-semibold">{u.city}</td>
-                          <td className="px-5 py-4">
-                            <div className="text-[10px] text-neutral-600 dark:text-neutral-300">
-                              Аяқталған тапсырыс: <span className="font-bold">{u.completedTasksCount || 0}</span>
-                            </div>
-                            <div className="text-[9px] text-neutral-400 mt-0.5">Қабылданған: {u.acceptedTasksCount || 0}</div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <button
-                              onClick={() => setSelectedUserForFiles(u)}
-                              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                                fileCount > 0
-                                  ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30 cursor-pointer'
-                                  : 'bg-neutral-50 text-neutral-400 dark:bg-neutral-900/50 cursor-pointer hover:bg-neutral-100/50 hover:text-neutral-500'
-                              }`}
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                              <span>{fileCount} файл</span>
-                            </button>
-                          </td>
-                          <td className="px-5 py-4 font-bold text-amber-500">⭐ {u.rating || 5} ({u.reviewsCount || 0})</td>
-                          <td className="px-5 py-4">
-                            {u.isAdmin ? (
-                              <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/10 dark:text-emerald-400 font-bold p-1 px-2 rounded-md">Иә</span>
-                            ) : (
-                              <span className="text-neutral-300">Жоқ</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4 text-right">
-                            {u.email !== 'sanjaresenalin@gmail.com' ? (
-                              <button
-                                onClick={() => handleToggleBan(u.uid, u.isBanned)}
-                                className={`p-1.5 rounded-xl font-bold transition-colors ${
-                                  u.isBanned
-                                    ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/25 dark:text-emerald-400'
-                                    : 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/25 dark:text-rose-400'
-                                }`}
-                              >
-                                {u.isBanned ? 'Бұғаттаудан босату' : 'Бұғаттау'}
-                              </button>
-                            ) : (
-                              <span className="text-[10px] text-neutral-400 shrink-0">Қол тигізусіз</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="flex flex-wrap items-end gap-3 pt-2 border-t border-neutral-150 dark:border-neutral-800">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                      Басталу күні / Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={userStartDate}
+                      onChange={(e) => setUserStartDate(e.target.value)}
+                      className="w-full sm:w-44 px-3 py-1.5 border border-neutral-250 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600 focus:border-teal-600 transition-all text-neutral-750"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-neutral-500 dark:text-neutral-400">
+                      Аяқталу күні / End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={userEndDate}
+                      onChange={(e) => setUserEndDate(e.target.value)}
+                      className="w-full sm:w-44 px-3 py-1.5 border border-neutral-250 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600 focus:border-teal-600 transition-all text-neutral-750"
+                    />
+                  </div>
+
+                  {(userStartDate || userEndDate) && (
+                    <button
+                      onClick={() => {
+                        setUserStartDate('');
+                        setUserEndDate('');
+                      }}
+                      className="px-3.5 py-1.5 border border-dashed border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/20 text-rose-600 dark:text-rose-405 rounded-xl text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer h-[32px]"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Тазалау / Reset
+                    </button>
+                  )}
+
+                  <div className="ml-auto text-[10px] font-bold text-neutral-450 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-850 border border-neutral-150 dark:border-neutral-800 px-3 py-2 rounded-xl h-[32px] flex items-center shrink-0">
+                    Табылды / Found: {filteredUsers.length} / {users.length}
+                  </div>
+                </div>
               </div>
+
+              {filteredUsers.length === 0 ? (
+                <div className="p-16 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-3xl text-center text-xs text-neutral-400 space-y-2">
+                  <div className="text-3xl">📅</div>
+                  <div className="font-bold">Бұл уақыт аралығында тіркелген пайдаланушылар табылмады.</div>
+                  <p className="text-[10px]">Басқа уақыт аралығын таңдап көріңіз немесе сүзгілерді тазалаңыз.</p>
+                </div>
+              ) : (
+                <div className="glass-card rounded-3xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-neutral-500 dark:text-neutral-400">
+                      <thead className="bg-neutral-50 dark:bg-neutral-800/40 text-[10px] uppercase font-bold text-neutral-400 border-b border-neutral-150 dark:border-neutral-800">
+                        <tr>
+                          <th className="px-5 py-3.5">Аты-жөні / Эл.пошта / Тіркелген күні</th>
+                          <th className="px-5 py-3.5">Қала</th>
+                          <th className="px-5 py-3.5">Статистика</th>
+                          <th className="px-5 py-3.5">Жүктелген файлдар</th>
+                          <th className="px-5 py-3.5">Рейтинг</th>
+                          <th className="px-5 py-3.5">Админ бе?</th>
+                          <th className="px-5 py-3.5 text-right">Әрекеттер</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {filteredUsers.map((u) => {
+                          const userUploadedFiles = tasks.filter(t => t.creatorId === u.uid && t.attachmentUrl);
+                          const fileCount = userUploadedFiles.length;
+                          const formattedRegDate = u.createdAt ? new Date(u.createdAt).toLocaleDateString('kk', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : 'Белгісіз';
+
+                          return (
+                            <tr key={u.uid} className={`hover:bg-neutral-50/50 dark:hover:bg-neutral-850/20 ${u.isBanned ? 'bg-rose-50/20' : ''}`}>
+                              <td className="px-5 py-4">
+                                <div className="font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
+                                  {u.name}
+                                  {u.isBanned && (
+                                    <span className="bg-rose-100 text-rose-800 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
+                                      Бұғатталған
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-neutral-400 mt-0.5">{u.email}</div>
+                                <div className="text-[9px] text-neutral-400/80 mt-1 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Тіркелді: {formattedRegDate}
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-neutral-700 dark:text-neutral-300 font-semibold">{u.city}</td>
+                              <td className="px-5 py-4">
+                                <div className="text-[10px] text-neutral-600 dark:text-neutral-300">
+                                  Аяқталған тапсырыс: <span className="font-bold">{u.completedTasksCount || 0}</span>
+                                </div>
+                                <div className="text-[9px] text-neutral-400 mt-0.5">Қабылданған: {u.acceptedTasksCount || 0}</div>
+                              </td>
+                              <td className="px-5 py-4">
+                                <button
+                                  onClick={() => setSelectedUserForFiles(u)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                                    fileCount > 0
+                                      ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-400 border border-blue-100 dark:border-blue-900/30 cursor-pointer'
+                                      : 'bg-neutral-50 text-neutral-400 dark:bg-neutral-900/50 cursor-pointer hover:bg-neutral-100/50 hover:text-neutral-500'
+                                  }`}
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>{fileCount} файл</span>
+                                </button>
+                              </td>
+                              <td className="px-5 py-4 font-bold text-amber-500">⭐ {u.rating || 5} ({u.reviewsCount || 0})</td>
+                              <td className="px-5 py-4">
+                                {u.isAdmin ? (
+                                  <span className="text-emerald-600 bg-emerald-50 dark:bg-emerald-900/10 dark:text-emerald-400 font-bold p-1 px-2 rounded-md">Иә</span>
+                                ) : (
+                                  <span className="text-neutral-300">Жоқ</span>
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                {u.email !== 'sanjaresenalin@gmail.com' ? (
+                                  <button
+                                    onClick={() => handleToggleBan(u.uid, u.isBanned)}
+                                    className={`p-1.5 rounded-xl font-bold transition-colors ${
+                                      u.isBanned
+                                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/25 dark:text-emerald-400'
+                                        : 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/25 dark:text-rose-400'
+                                    }`}
+                                  >
+                                    {u.isBanned ? 'Бұғаттаудан босату' : 'Бұғаттау'}
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-neutral-400 shrink-0">Қол тигізусіз</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
