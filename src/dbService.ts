@@ -117,10 +117,10 @@ export async function getTask(taskId: string): Promise<Task | null> {
   }
 }
 
-export async function getTasks(): Promise<Task[]> {
+export async function getTasks(isAdmin?: boolean): Promise<Task[]> {
   const tasksCollection = 'tasks';
   const uid = auth.currentUser?.uid;
-  const isAdminUser = uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2';
+  const isAdminUser = uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' || isAdmin === true;
 
   try {
     if (isAdminUser) {
@@ -164,6 +164,9 @@ export async function getTasks(): Promise<Task[]> {
       return [];
     }
   } catch (error) {
+    if (!auth.currentUser) {
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, tasksCollection);
     return [];
   }
@@ -171,10 +174,11 @@ export async function getTasks(): Promise<Task[]> {
 
 export function subscribeTasks(
   onUpdate: (tasks: Task[]) => void,
-  onError: (err: any) => void
+  onError: (err: any) => void,
+  isAdmin?: boolean
 ) {
   const uid = auth.currentUser?.uid;
-  const isAdminUser = uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2';
+  const isAdminUser = uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' || isAdmin === true;
 
   if (!uid) {
     onUpdate([]);
@@ -491,6 +495,9 @@ export async function getUserReviews(userId: string): Promise<Review[]> {
     });
     return reviews;
   } catch (error) {
+    if (!auth.currentUser) {
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, reviewsCollection);
     return [];
   }
@@ -546,6 +553,9 @@ export async function getUserNotifications(userId: string): Promise<Notification
     });
     return notifications;
   } catch (error) {
+    if (!auth.currentUser) {
+      return [];
+    }
     handleFirestoreError(error, OperationType.LIST, notifCollection);
     return [];
   }

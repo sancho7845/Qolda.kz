@@ -43,12 +43,12 @@ service cloud.firestore {
              data.name is string && data.name.size() <= 100 &&
              data.email is string && data.email.size() <= 150 &&
              data.city is string && data.city.size() <= 100 &&
-             (data.phone == null || (data.phone is string && data.phone.size() <= 30)) &&
-             (data.avatarId == null || (data.avatarId is string && data.avatarId.size() <= 50)) &&
-             (data.rating == null || (data.rating is number)) &&
-             (data.reviewsCount == null || (data.reviewsCount is int)) &&
-             (data.completedTasksCount == null || (data.completedTasksCount is int)) &&
-             (data.acceptedTasksCount == null || (data.acceptedTasksCount is int)) &&
+             (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('avatarId' in data) || data.avatarId == null || (data.avatarId is string && data.avatarId.size() <= 50)) &&
+             (!('rating' in data) || data.rating == null || (data.rating is number)) &&
+             (!('reviewsCount' in data) || data.reviewsCount == null || (data.reviewsCount is int)) &&
+             (!('completedTasksCount' in data) || data.completedTasksCount == null || (data.completedTasksCount is int)) &&
+             (!('acceptedTasksCount' in data) || data.acceptedTasksCount == null || (data.acceptedTasksCount is int)) &&
              data.isAdmin is bool &&
              data.isBanned is bool;
     }
@@ -65,11 +65,23 @@ service cloud.firestore {
              data.city is string && data.city.size() <= 100 &&
              data.creatorId is string && data.creatorId.size() <= 128 &&
              data.creatorName is string && data.creatorName.size() <= 100 &&
-             (data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 50)) &&
-             (data.volunteerId == null || (data.volunteerId is string && data.volunteerId.size() <= 128)) &&
-             (data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 100)) &&
-             (data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 50)) &&
-             (data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1000));
+             (!('creatorAvatar' in data) || data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 50)) &&
+             (!('volunteerId' in data) || data.volunteerId == null || (data.volunteerId is string && data.volunteerId.size() <= 128)) &&
+             (!('volunteerName' in data) || data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 100)) &&
+             (!('volunteerAvatar' in data) || data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 50)) &&
+             (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1000)) &&
+             (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 200)) &&
+             (!('attachmentSize' in data) || data.attachmentSize == null || (data.attachmentSize is int || data.attachmentSize is float || data.attachmentSize == 0)) &&
+             (!('ownerId' in data) || data.ownerId == null || (data.ownerId is string && data.ownerId.size() <= 128)) &&
+             (!('ownerName' in data) || data.ownerName == null || (data.ownerName is string && data.ownerName.size() <= 100)) &&
+             (!('ownerEmail' in data) || data.ownerEmail == null || (data.ownerEmail is string && data.ownerEmail.size() <= 150)) &&
+             (!('ownerPhone' in data) || data.ownerPhone == null || (data.ownerPhone is string && data.ownerPhone.size() <= 40)) &&
+             (!('address' in data) || data.address == null || (data.address is string && data.address.size() <= 300)) &&
+             (!('latitude' in data) || data.latitude == null || (data.latitude is float || data.latitude is int)) &&
+             (!('longitude' in data) || data.longitude == null || (data.longitude is float || data.longitude is int)) &&
+             (!('locationSource' in data) || data.locationSource == null || (data.locationSource is string && data.locationSource.size() <= 50)) &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50)) &&
+             (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 50));
     }
 
     // Review Validator
@@ -78,10 +90,11 @@ service cloud.firestore {
              data.taskId is string && data.taskId.size() <= 128 &&
              data.reviewerId is string && data.reviewerId.size() <= 128 &&
              data.reviewerName is string && data.reviewerName.size() <= 100 &&
-             (data.reviewerAvatar == null || (data.reviewerAvatar is string && data.reviewerAvatar.size() <= 50)) &&
+             (!('reviewerAvatar' in data) || data.reviewerAvatar == null || (data.reviewerAvatar is string && data.reviewerAvatar.size() <= 50)) &&
              data.targetUserId is string && data.targetUserId.size() <= 128 &&
              data.rating is int && data.rating >= 1 && data.rating <= 5 &&
-             data.text is string && data.text.size() <= 1000;
+             data.text is string && data.text.size() <= 1000 &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50));
     }
 
     // Notification Validator
@@ -90,9 +103,10 @@ service cloud.firestore {
              data.userId is string && data.userId.size() <= 128 &&
              data.title is string && data.title.size() <= 150 &&
              data.message is string && data.message.size() <= 500 &&
-             (data.taskId == null || (data.taskId is string && data.taskId.size() <= 128)) &&
+             (!('taskId' in data) || data.taskId == null || (data.taskId is string && data.taskId.size() <= 128)) &&
              data.type is string && data.type.matches('^(task_accepted|task_completed|new_review|system)$') &&
-             data.isRead is bool;
+             data.isRead is bool &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50));
     }
 
     // Report Validator
@@ -104,14 +118,16 @@ service cloud.firestore {
              data.targetId is string && data.targetId.size() <= 128 &&
              data.targetLabel is string && data.targetLabel.size() <= 200 &&
              data.reason is string && data.reason.size() <= 1000 &&
-             data.status is string && data.status.matches('^(pending|resolved)$');
+             data.status is string && data.status.matches('^(pending|resolved)$') &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50));
     }
 
     // --- COLLECTION ROUTES ---
 
     // 1. Users Profiles Route
     match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) &&
                     (incoming().isAdmin == false || request.auth.token.email == 'sanjaresenalin@gmail.com');
       allow update: if isSignedIn() && isValidUser(incoming()) && (
@@ -119,6 +135,8 @@ service cloud.firestore {
                     (request.auth.uid == userId && 
                      incoming().isAdmin == existing().isAdmin && 
                      incoming().isBanned == existing().isBanned) ||
+                    // Rate user action (allows modifying rating and reviewsCount on completing/submitting reviews)
+                    (incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'reviewsCount'])) ||
                     // Admin update
                     isAdmin()
                   );

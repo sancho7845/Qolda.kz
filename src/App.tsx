@@ -169,7 +169,7 @@ function QoldaApp() {
   const loadTasks = async () => {
     setLoadingTasks(true);
     try {
-      const allTasks = await getTasks();
+      const allTasks = await getTasks(!!userProfile?.isAdmin);
       setTasks(allTasks);
     } catch (e) {
       console.error(e);
@@ -204,7 +204,8 @@ function QoldaApp() {
         (err) => {
           console.error('Real-time listener failed:', err);
           setLoadingTasks(false);
-        }
+        },
+        !!userProfile?.isAdmin
       );
 
       loadNotificationsAndReviews();
@@ -220,7 +221,7 @@ function QoldaApp() {
         }
       };
     }
-  }, [currentUser]);
+  }, [currentUser, userProfile?.isAdmin]);
 
   // Auth Execution handlers
   const handleLogin = async (e: React.FormEvent) => {
@@ -1657,12 +1658,7 @@ service firebase.storage {
 
             {/* 3. MY DASHBOARD VIEW */}
             {activeTab === 'my_dashboard' && (
-              userProfile?.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' ? (
-                <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl p-6 shadow-xs max-w-7xl mx-auto">
-                  <AdminPanel />
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                 
                 {/* Profile Panel Column */}
                 <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-6">
@@ -1752,7 +1748,16 @@ service firebase.storage {
                         </div>
                         <div>
                           <h4 className="font-black text-lg text-neutral-900 dark:text-neutral-50 mb-0.5">{userProfile?.name}</h4>
-                          <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider">{userProfile?.city} тұрғыны</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider">{userProfile?.city} тұрғыны</span>
+                            <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold rounded-md uppercase tracking-wider w-fit ${
+                              userProfile?.isAdmin 
+                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' 
+                                : 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
+                            }`}>
+                              Рөлі: {userProfile?.isAdmin ? 'Администратор' : 'Волонтер / Көрші'}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -1795,6 +1800,20 @@ service firebase.storage {
                           <span className="font-medium text-neutral-500">Қабылдаған істерім:</span>
                           <span className="font-extrabold text-neutral-705 dark:text-neutral-250">{userProfile?.acceptedTasksCount || 0} іс</span>
                         </div>
+                      </div>
+
+                      {/* Volunteer Level display */}
+                      <div className="bg-gradient-to-r from-amber-500/10 to-teal-500/10 dark:from-amber-505/5 dark:to-teal-505/5 p-3 rounded-xl border border-amber-500/20 dark:border-amber-500/10 flex items-center justify-between text-xs">
+                        <span className="font-medium text-amber-600 dark:text-amber-400">Ерікті деңгейі:</span>
+                        <span className="font-extrabold text-teal-600 dark:text-teal-400">
+                          {(() => {
+                            const completed = userProfile?.completedTasksCount || 0;
+                            if (completed === 0) return 'Жаңадан бастаушы 👶';
+                            if (completed >= 1 && completed < 5) return 'Белсенді көмекші 🤝';
+                            if (completed >= 5 && completed < 15) return 'Тәжірибелі ерікті 🌟';
+                            return 'Алтын жүректі Ерікті 🏆';
+                          })()}
+                        </span>
                       </div>
 
                       {/* Buttons */}
@@ -1961,7 +1980,6 @@ service firebase.storage {
                 </div>
 
               </div>
-              )
             )}
 
             {/* 4. ADMIN VIEW PANEL PANEL */}

@@ -41,60 +41,71 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       return null;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+      console.warn('Firestore fetchUserProfile failed, attempting graceful offline fallback:', error);
+      return null;
     }
   };
 
   const refreshProfile = async () => {
     if (currentUser) {
-      const profile = await fetchUserProfile(currentUser);
-      if (profile) {
-        setUserProfile(profile);
+      try {
+        const profile = await fetchUserProfile(currentUser);
+        if (profile) {
+          setUserProfile(profile);
+        }
+      } catch (err) {
+        console.warn('Failed to refresh profile:', err);
       }
     }
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
-      if (user) {
-        let profile = await fetchUserProfile(user);
-        
-        // Ensure the special admin user ID is always marked as admin
-        if (profile && (user.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' || user.email === 'sanjaresenalin@gmail.com')) {
-          profile.isAdmin = true;
-        }
-        
-        // Dynamic profile creation in case Auth exists but Firestore profile is missing
-        if (!profile) {
-          const isBootstrappedAdmin = user.email === 'sanjaresenalin@gmail.com' || user.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2';
-          const defaultProfile: UserProfile = {
-            uid: user.uid,
-            name: user.displayName || 'Пайдаланушы',
-            email: user.email || '',
-            city: 'Алматы',
-            phone: '',
-            avatarId: 'avatar_1',
-            rating: 5,
-            reviewsCount: 0,
-            completedTasksCount: 0,
-            acceptedTasksCount: 0,
-            isAdmin: isBootstrappedAdmin,
-            isBanned: false,
-            createdAt: new Date().toISOString()
-          };
-          try {
-            await setDoc(doc(db, 'users', user.uid), defaultProfile);
-            profile = defaultProfile;
-          } catch (error) {
-            handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+      try {
+        setCurrentUser(user);
+        if (user) {
+          let profile = await fetchUserProfile(user);
+          
+          // Ensure the special admin user ID is always marked as admin
+          if (profile && (user.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2' || user.email === 'sanjaresenalin@gmail.com')) {
+            profile.isAdmin = true;
           }
+          
+          // Dynamic profile creation in case Auth exists but Firestore profile is missing
+          if (!profile) {
+            const isBootstrappedAdmin = user.email === 'sanjaresenalin@gmail.com' || user.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2';
+            const defaultProfile: UserProfile = {
+              uid: user.uid,
+              name: user.displayName || 'Пайдаланушы',
+              email: user.email || '',
+              city: 'Алматы',
+              phone: '',
+              avatarId: 'avatar_1',
+              rating: 5,
+              reviewsCount: 0,
+              completedTasksCount: 0,
+              acceptedTasksCount: 0,
+              isAdmin: isBootstrappedAdmin,
+              isBanned: false,
+              createdAt: new Date().toISOString()
+            };
+            try {
+              await setDoc(doc(db, 'users', user.uid), defaultProfile);
+              profile = defaultProfile;
+            } catch (error) {
+              console.warn('Failed to write default user profile to Firestore (using offline local profile state):', error);
+              profile = defaultProfile;
+            }
+          }
+          setUserProfile(profile);
+        } else {
+          setUserProfile(null);
         }
-        setUserProfile(profile);
-      } else {
-        setUserProfile(null);
+      } catch (e) {
+        console.error('Error under onAuthStateChanged lifecycle:', e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
