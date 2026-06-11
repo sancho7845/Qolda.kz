@@ -7,6 +7,7 @@ export enum TaskCategory {
   EDUCATION = 'education',
   TECHNOLOGY = 'technology',
   HEALTHCARE = 'healthcare',
+  ECOLOGY = 'ecology',
   OTHER = 'other'
 }
 
@@ -17,6 +18,7 @@ export const CATEGORY_LABELS: Record<TaskCategory, string> = {
   [TaskCategory.EDUCATION]: 'Білім беру / Оқу-жазу',
   [TaskCategory.TECHNOLOGY]: 'Технологиялық көмек',
   [TaskCategory.HEALTHCARE]: 'Медициналық көмек',
+  [TaskCategory.ECOLOGY]: 'Экологиялық көмек',
   [TaskCategory.OTHER]: 'Басқа көмек'
 };
 

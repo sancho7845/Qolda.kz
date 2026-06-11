@@ -58,7 +58,7 @@ service cloud.firestore {
       return data.id is string && data.id.size() <= 128 &&
              data.title is string && data.title.size() <= 120 &&
              data.description is string && data.description.size() <= 2000 &&
-             data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|other)$') &&
+             data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|ecology|other)$') &&
              data.priority is string && data.priority.matches('^(high|medium|low)$') &&
              data.deadline is string && data.deadline.size() <= 50 &&
              data.status is string && data.status.matches('^(new|in_progress|completed)$') &&
@@ -129,7 +129,7 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create: if isSignedIn() && request.auth.uid == userId && isValidUser(incoming()) &&
-                    (incoming().isAdmin == false || request.auth.token.email == 'sanjaresenalin@gmail.com');
+                    (incoming().isAdmin == false || request.auth.token.email == 'sanjaresenalin@gmail.com' || request.auth.uid == 'q2BisrMhIBdICRbrDPEp0Lr9iZu2');
       allow update: if isSignedIn() && isValidUser(incoming()) && (
                     // Self update (block switching isAdmin/isBanned manually)
                     (request.auth.uid == userId && 

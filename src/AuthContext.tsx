@@ -52,6 +52,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const profile = await fetchUserProfile(currentUser);
         if (profile) {
           setUserProfile(profile);
+        } else {
+          // Auto create profile if missing from Firestore
+          const isBootstrappedAdmin = currentUser.email === 'sanjaresenalin@gmail.com' || currentUser.uid === 'q2BisrMhIBdICRbrDPEp0Lr9iZu2';
+          const defaultProfile: UserProfile = {
+            uid: currentUser.uid,
+            name: currentUser.displayName || 'Пайдаланушы',
+            email: currentUser.email || '',
+            city: 'Алматы',
+            phone: '',
+            avatarId: 'avatar_1',
+            rating: 5,
+            reviewsCount: 0,
+            completedTasksCount: 0,
+            acceptedTasksCount: 0,
+            isAdmin: isBootstrappedAdmin,
+            isBanned: false,
+            createdAt: new Date().toISOString()
+          };
+          try {
+            await setDoc(doc(db, 'users', currentUser.uid), defaultProfile);
+            setUserProfile(defaultProfile);
+          } catch (error) {
+            console.warn('Failed to auto create user profile inside refreshProfile:', error);
+            setUserProfile(defaultProfile);
+          }
         }
       } catch (err) {
         console.warn('Failed to refresh profile:', err);

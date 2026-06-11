@@ -89,6 +89,8 @@ function QoldaApp() {
   const [newTaskLatitude, setNewTaskLatitude] = useState<number | null>(null);
   const [newTaskLongitude, setNewTaskLongitude] = useState<number | null>(null);
   const [newTaskLocationSource, setNewTaskLocationSource] = useState<'manual' | 'geolocation' | null>(null);
+  const [geolocationStatusText, setGeolocationStatusText] = useState<string | null>(null);
+  const [geolocationErrorText, setGeolocationErrorText] = useState<string | null>(null);
 
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -99,7 +101,9 @@ function QoldaApp() {
   const [reportModalTarget, setReportModalTarget] = useState<Task | null>(null);
 
   // Warn/helper message display state
-  const [hideWarningMessage, setHideWarningMessage] = useState(false);
+  const [hideWarningMessage, setHideWarningMessage] = useState(() => {
+    return sessionStorage.getItem('hideEmailWarning') === 'true';
+  });
 
   // Storage configuration/guidance warning state
   const [storageErrorWarning, setStorageErrorWarning] = useState<boolean>(false);
@@ -354,8 +358,13 @@ function QoldaApp() {
   };
 
   const handleUseMyLocation = () => {
+    setGeolocationStatusText('Орналасқан жерді анықтау...');
+    setGeolocationErrorText(null);
     if (!navigator.geolocation) {
-      alert("Сіздің браузеріңіз геолокацияны қолдамайды.");
+      const msg = "Сіздің браузеріңіз геолокацияны қолдамайды.";
+      setGeolocationErrorText(msg);
+      setGeolocationStatusText(null);
+      alert(msg);
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -365,13 +374,17 @@ function QoldaApp() {
         setNewTaskLatitude(lat);
         setNewTaskLongitude(lng);
         setNewTaskLocationSource('geolocation');
-        alert(`Орналасқан жер анықталды! Координаттар: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        setGeolocationStatusText("Орналасқан жер анықталды");
+        setGeolocationErrorText(null);
+        alert("Орналасқан жер анықталды");
       },
       (error) => {
         console.error("Geolocation error:", error);
-        alert("Орналасқан жерді анықтауға рұқсат берілмеді. Мекенжайды қолмен енгізіңіз.");
+        setGeolocationErrorText("Геолокацияға рұқсат берілмеді");
+        setGeolocationStatusText(null);
+        alert("Геолокацияға рұқсат берілмеді");
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -1184,7 +1197,7 @@ function QoldaApp() {
                   onClick={async () => {
                     try {
                       await sendEmailVerification();
-                      alert('Растау сілтемесі поштаңызға жіберілді. Поштаңызды (соның ішінде Спам бөлімін) тексеріңіз.');
+                      alert('Растау сілтемесі поштаңызға жіберілді');
                     } catch (e: any) {
                       alert('Нұсқаулық жіберу сәтсіз өтті: ' + String(e));
                     }
@@ -1194,7 +1207,10 @@ function QoldaApp() {
                   Растау сілтемесін жіберу
                 </button>
                 <button
-                  onClick={() => setHideWarningMessage(true)}
+                  onClick={() => {
+                    setHideWarningMessage(true);
+                    sessionStorage.setItem('hideEmailWarning', 'true');
+                  }}
                   className="p-1 hover:bg-amber-500/20 rounded-md transition-colors"
                   title="Жабу"
                 >
@@ -1490,6 +1506,18 @@ function QoldaApp() {
                       placeholder="Мекенжайды енгізіңіз"
                       className="w-full p-3 rounded-xl border border-neutral-200 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none font-semibold placeholder:text-neutral-450"
                     />
+
+                    {geolocationStatusText && (
+                      <div className="text-[10px] text-teal-700 dark:text-teal-400 font-bold bg-teal-50 dark:bg-teal-950/40 p-2 rounded-lg border border-teal-100 dark:border-teal-900/40">
+                        ✨ {geolocationStatusText}
+                      </div>
+                    )}
+
+                    {geolocationErrorText && (
+                      <div className="text-[10px] text-rose-700 dark:text-rose-400 font-bold bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-100 dark:border-rose-900/40">
+                        ⚠ {geolocationErrorText}
+                      </div>
+                    )}
 
                     {newTaskLatitude && newTaskLongitude && (
                       <div className="text-[10px] text-teal-650 dark:text-teal-400 font-bold flex items-center gap-1 bg-teal-50/50 dark:bg-teal-950/20 px-2.5 py-1.5 rounded-xl border border-teal-150/30">

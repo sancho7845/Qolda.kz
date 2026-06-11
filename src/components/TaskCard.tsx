@@ -35,6 +35,7 @@ export default function TaskCard({
     [TaskCategory.EDUCATION]: '📚',
     [TaskCategory.TECHNOLOGY]: '💻',
     [TaskCategory.HEALTHCARE]: '💊',
+    [TaskCategory.ECOLOGY]: '🌱',
     [TaskCategory.OTHER]: '🤝',
   };
 
