@@ -625,6 +625,9 @@ export async function submitReport(
 
 export async function getReports(): Promise<Report[]> {
   const reportsCollection = 'reports';
+  if (!auth.currentUser) {
+    return [];
+  }
   try {
     const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -658,6 +661,9 @@ export async function toggleUserBan(userId: string, isBanned: boolean): Promise<
 
 export async function getUsers(): Promise<UserProfile[]> {
   const usersCollection = 'users';
+  if (!auth.currentUser) {
+    return [];
+  }
   try {
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
@@ -680,6 +686,17 @@ export async function getPlatformStats(): Promise<{
   totalVolunteers: number;
   totalReports: number;
 }> {
+  if (!auth.currentUser) {
+    return {
+      totalTasks: 0,
+      newTasks: 0,
+      activeTasks: 0,
+      completedTasks: 0,
+      totalUsers: 0,
+      totalVolunteers: 0,
+      totalReports: 0
+    };
+  }
   try {
     const tasksSnap = await getDocs(collection(db, 'tasks'));
     const usersSnap = await getDocs(collection(db, 'users'));

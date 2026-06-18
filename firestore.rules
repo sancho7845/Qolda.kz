@@ -56,32 +56,32 @@ service cloud.firestore {
     // Task Validator
     function isValidTask(data) {
       return data.id is string && data.id.size() <= 128 &&
-             data.title is string && data.title.size() <= 120 &&
-             data.description is string && data.description.size() <= 2000 &&
+             data.title is string && data.title.size() <= 500 &&
+             data.description is string && data.description.size() <= 10000 &&
              data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|ecology|other)$') &&
              data.priority is string && data.priority.matches('^(high|medium|low)$') &&
-             data.deadline is string && data.deadline.size() <= 50 &&
+             data.deadline is string && data.deadline.size() <= 100 &&
              data.status is string && data.status.matches('^(new|in_progress|completed)$') &&
-             data.city is string && data.city.size() <= 100 &&
+             data.city is string && data.city.size() <= 200 &&
              data.creatorId is string && data.creatorId.size() <= 128 &&
-             data.creatorName is string && data.creatorName.size() <= 100 &&
-             (!('creatorAvatar' in data) || data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 50)) &&
+             data.creatorName is string && data.creatorName.size() <= 200 &&
+             (!('creatorAvatar' in data) || data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 100)) &&
              (!('volunteerId' in data) || data.volunteerId == null || (data.volunteerId is string && data.volunteerId.size() <= 128)) &&
-             (!('volunteerName' in data) || data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 100)) &&
-             (!('volunteerAvatar' in data) || data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 50)) &&
-             (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1000)) &&
-             (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 200)) &&
-             (!('attachmentSize' in data) || data.attachmentSize == null || (data.attachmentSize is int || data.attachmentSize is float || data.attachmentSize == 0)) &&
+             (!('volunteerName' in data) || data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 200)) &&
+             (!('volunteerAvatar' in data) || data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 100)) &&
+             (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 2000)) &&
+             (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 1000)) &&
+             (!('attachmentSize' in data) || data.attachmentSize == null || (data.attachmentSize is number)) &&
              (!('ownerId' in data) || data.ownerId == null || (data.ownerId is string && data.ownerId.size() <= 128)) &&
-             (!('ownerName' in data) || data.ownerName == null || (data.ownerName is string && data.ownerName.size() <= 100)) &&
-             (!('ownerEmail' in data) || data.ownerEmail == null || (data.ownerEmail is string && data.ownerEmail.size() <= 150)) &&
-             (!('ownerPhone' in data) || data.ownerPhone == null || (data.ownerPhone is string && data.ownerPhone.size() <= 40)) &&
-             (!('address' in data) || data.address == null || (data.address is string && data.address.size() <= 300)) &&
-             (!('latitude' in data) || data.latitude == null || (data.latitude is float || data.latitude is int)) &&
-             (!('longitude' in data) || data.longitude == null || (data.longitude is float || data.longitude is int)) &&
-             (!('locationSource' in data) || data.locationSource == null || (data.locationSource is string && data.locationSource.size() <= 50)) &&
-             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50)) &&
-             (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 50));
+             (!('ownerName' in data) || data.ownerName == null || (data.ownerName is string && data.ownerName.size() <= 200)) &&
+             (!('ownerEmail' in data) || data.ownerEmail == null || (data.ownerEmail is string && data.ownerEmail.size() <= 200)) &&
+             (!('ownerPhone' in data) || data.ownerPhone == null || (data.ownerPhone is string && data.ownerPhone.size() <= 100)) &&
+             (!('address' in data) || data.address == null || (data.address is string && data.address.size() <= 1000)) &&
+             (!('latitude' in data) || data.latitude == null || (data.latitude is number)) &&
+             (!('longitude' in data) || data.longitude == null || (data.longitude is number)) &&
+             (!('locationSource' in data) || data.locationSource == null || (data.locationSource is string && data.locationSource.size() <= 100)) &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100)) &&
+             (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 100));
     }
 
     // Review Validator

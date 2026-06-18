@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../AuthContext';
 import { 
   getPlatformStats, 
   getReports, 
@@ -31,6 +32,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminPanel() {
+  const { currentUser, userProfile } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -84,6 +86,10 @@ export default function AdminPanel() {
   });
 
   const loadAdminData = async () => {
+    if (!currentUser || !userProfile?.isAdmin) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const fetchedStats = await getPlatformStats();
@@ -103,7 +109,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     loadAdminData();
-  }, []);
+  }, [currentUser, userProfile?.isAdmin]);
 
   const handleResolveReport = async (reportId: string) => {
     if (!window.confirm('Бұл шағымды шешілді деп белгілегіңіз келе ме?')) return;
