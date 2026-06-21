@@ -15,7 +15,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from './firebase';
-import { Task, TaskCategory, TaskPriority, TaskStatus, UserProfile, Review, Notification, Report } from './types';
+import { Task, TaskCategory, TaskPriority, TaskStatus, UserProfile, Review, Notification, Report } from '../types';
 
 // generate random stable ID helper
 function generateId() {
@@ -617,6 +617,48 @@ export async function submitReport(
 
   try {
     await setDoc(doc(db, 'reports', reportId), report);
+
+    if (targetType === 'task') {
+      try {
+        const reportsRef = collection(db, 'reports');
+        const q = query(reportsRef, where('targetType', '==', 'task'), where('targetId', '==', targetId));
+        const querySnapshot = await getDocs(q);
+        let count = 0;
+        querySnapshot.forEach(() => {
+          count++;
+        });
+
+        if (count >= 3) {
+          const taskDocRef = doc(db, 'tasks', targetId);
+          await updateDoc(taskDocRef, {
+            status: TaskStatus.PENDING_REVIEW,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Send notification
+          try {
+            const taskSnap = await getDoc(taskDocRef);
+            if (taskSnap.exists()) {
+              const taskData = taskSnap.data() as Task;
+              if (taskData.creatorId) {
+                await createNotification(
+                  taskData.creatorId,
+                  'Тапсырма уақытша тоқтатылды (Шектеу) ⚠️',
+                  `Сіздің "${taskData.title}" тапсырмаңызға 3 немесе одан көп шағым түсуіне байланысты, ол тексеруге жіберіліп, уақытша белсенді емес қылынды.`,
+                  targetId,
+                  'system'
+                );
+              }
+            }
+          } catch (errNotif) {
+            console.error('Failed to notify creator of flagged task:', errNotif);
+          }
+        }
+      } catch (errCount) {
+        console.error('Failed to auto check target reports status:', errCount);
+      }
+    }
+
     return reportId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, reportPath);

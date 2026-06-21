@@ -192,13 +192,14 @@ export default function TaskCard({
           </button>
         )}
 
-        {!isCreator && !isVolunteer && (
+        {!isCreator && (
           <button
             onClick={() => onReport(task)}
-            className="py-2 px-2 text-neutral-400 hover:text-rose-500 rounded-xl transition-colors"
-            title="Шағымдану"
+            className="py-2 px-2.5 border border-rose-200 hover:bg-rose-50/50 dark:border-rose-950/30 dark:hover:bg-rose-950/10 text-rose-600 hover:text-rose-700 rounded-xl transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+            title="Шағым беру (Спам немесе ереже бұзу)"
           >
-            <AlertTriangle className="w-4 h-4" />
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold">Шағым беру</span>
           </button>
         )}
       </div>

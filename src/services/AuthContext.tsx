@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
-import { UserProfile } from './types';
+import { UserProfile } from '../types';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -21,6 +21,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   sendPasswordResetEmail: (email: string) => Promise<void>;
   sendEmailVerification: () => Promise<void>;
+  checkEmailVerificationStatus: () => Promise<boolean>;
   refreshProfile: () => Promise<void>;
   updateUserBio: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -191,6 +192,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const checkEmailVerificationStatus = async (): Promise<boolean> => {
+    if (auth.currentUser) {
+      await auth.currentUser.reload();
+      const updatedUser = auth.currentUser;
+      // We perform a copy to make sure React detects a new state reference
+      setCurrentUser(auth.currentUser);
+      return updatedUser.emailVerified;
+    }
+    return false;
+  };
+
   const updateUserBio = async (data: Partial<UserProfile>) => {
     if (!currentUser) return;
     const userDocRef = doc(db, 'users', currentUser.uid);
@@ -212,6 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       sendPasswordResetEmail,
       sendEmailVerification,
+      checkEmailVerificationStatus,
       refreshProfile,
       updateUserBio
     }}>

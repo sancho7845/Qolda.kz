@@ -37,13 +37,15 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
 export enum TaskStatus {
   NEW = 'new',
   IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed'
+  COMPLETED = 'completed',
+  PENDING_REVIEW = 'pending_review'
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   [TaskStatus.NEW]: 'Жаңа',
   [TaskStatus.IN_PROGRESS]: 'Орындалуда',
-  [TaskStatus.COMPLETED]: 'Аяқталды'
+  [TaskStatus.COMPLETED]: 'Аяқталды',
+  [TaskStatus.PENDING_REVIEW]: 'Тексерілуде (Шағым)'
 };
 
 export interface UserProfile {

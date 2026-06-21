@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { 
   getPlatformStats, 
   getReports, 
@@ -8,7 +8,7 @@ import {
   toggleUserBan, 
   updateReportStatus, 
   deleteTask 
-} from '../dbService';
+} from '../services/dbService';
 import { Report, UserProfile, Task } from '../types';
 import { 
   Users, 
