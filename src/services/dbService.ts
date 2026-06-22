@@ -30,6 +30,8 @@ export async function createTask(
   category: TaskCategory,
   priority: TaskPriority,
   deadline: string,
+  startDateTime: string,
+  endDateTime: string,
   city: string,
   creator: UserProfile,
   attachmentUrl?: string,
@@ -51,14 +53,18 @@ export async function createTask(
     category,
     priority,
     deadline,
-    status: TaskStatus.NEW,
+    startDateTime,
+    endDateTime,
+    status: TaskStatus.ACTIVE,
     city,
     creatorId: creator.uid,
     creatorName: creator.name,
     creatorAvatar: creator.avatarId || 'avatar_1',
+    creatorAvatarUrl: creator.avatarUrl || '',
     volunteerId: null,
     volunteerName: null,
     volunteerAvatar: null,
+    volunteerAvatarUrl: null,
     createdAt: now,
     updatedAt: now,
     ownerId: creator.uid,
@@ -132,8 +138,8 @@ export async function getTasks(isAdmin?: boolean): Promise<Task[]> {
       });
       return tasks;
     } else if (uid) {
-      // For standard users, load open tasks, tasks they created, and tasks they accepted
-      const qNew = query(collection(db, 'tasks'), where('status', '==', 'new'));
+      // For standard users, load open tasks (new/active), tasks they created, and tasks they accepted
+      const qNew = query(collection(db, 'tasks'), where('status', 'in', ['new', 'active']));
       const qCreator = query(collection(db, 'tasks'), where('creatorId', '==', uid));
       const qVolunteer = query(collection(db, 'tasks'), where('volunteerId', '==', uid));
 
@@ -202,7 +208,7 @@ export function subscribeTasks(
     );
   }
 
-  const qNew = query(collection(db, 'tasks'), where('status', '==', 'new'));
+  const qNew = query(collection(db, 'tasks'), where('status', 'in', ['new', 'active']));
   const qCreator = query(collection(db, 'tasks'), where('creatorId', '==', uid));
   const qVolunteer = query(collection(db, 'tasks'), where('volunteerId', '==', uid));
 
@@ -271,6 +277,10 @@ export async function acceptTask(
   const now = new Date().toISOString();
   
   try {
+    if (auth.currentUser && !auth.currentUser.emailVerified) {
+      throw new Error('Тапсырмаларды орындау немесе қабылдау үшін электрондық поштаңызды растауыңыз қажет!');
+    }
+
     const taskDocRef = doc(db, 'tasks', taskId);
     const taskSnap = await getDoc(taskDocRef);
     if (!taskSnap.exists()) {
@@ -278,7 +288,8 @@ export async function acceptTask(
     }
     const task = taskSnap.data() as Task;
 
-    if (task.status !== TaskStatus.NEW) {
+    // Check if task is active or new from legacy
+    if (task.status !== TaskStatus.ACTIVE && task.status !== 'new' as any) {
       throw new Error('Бұл тапсырма басталып кеткен немесе аяқталған');
     }
     if (task.creatorId === volunteer.uid) {
@@ -286,12 +297,27 @@ export async function acceptTask(
     }
 
     await updateDoc(taskDocRef, {
-      status: TaskStatus.IN_PROGRESS,
+      status: TaskStatus.ACCEPTED,
       volunteerId: volunteer.uid,
       volunteerName: volunteer.name,
       volunteerAvatar: volunteer.avatarId || 'avatar_1',
+      volunteerAvatarUrl: volunteer.avatarUrl || null,
       updatedAt: now
     });
+
+    // Save/create a participation event
+    const participationId = `${volunteer.uid}_${taskId}`;
+    await setDoc(doc(db, 'participations', participationId), {
+      id: participationId,
+      userId: volunteer.uid,
+      userName: volunteer.name,
+      taskId: taskId,
+      taskTitle: task.title,
+      taskCategory: task.category,
+      status: 'accepted',
+      joinedAt: now,
+      updatedAt: now
+    }).catch(e => console.warn('Participation recording skipped:', e));
 
     // Notify the help-seeker
     await createNotification(
@@ -325,7 +351,11 @@ export async function cancelTaskAcceptance(taskId: string): Promise<void> {
     }
     const task = taskSnap.data() as Task;
 
-    if (task.status !== TaskStatus.IN_PROGRESS || !task.volunteerId) {
+    if (
+      task.status !== TaskStatus.ACCEPTED &&
+      task.status !== 'in_progress' as any ||
+      !task.volunteerId
+    ) {
       throw new Error('Бұл тапсырма орындалу күйінде емес');
     }
 
@@ -333,12 +363,19 @@ export async function cancelTaskAcceptance(taskId: string): Promise<void> {
     const prevVolunteerName = task.volunteerName;
 
     await updateDoc(taskDocRef, {
-      status: TaskStatus.NEW,
+      status: TaskStatus.ACTIVE,
       volunteerId: null,
       volunteerName: null,
       volunteerAvatar: null,
       updatedAt: now
     });
+
+    // Update/cancel participation record
+    const participationId = `${prevVolunteerId}_${taskId}`;
+    await updateDoc(doc(db, 'participations', participationId), {
+      status: 'cancelled',
+      updatedAt: now
+    }).catch(() => {});
 
     // Notify help-seeker
     await createNotification(
@@ -376,7 +413,11 @@ export async function completeTask(taskId: string): Promise<void> {
     }
     const task = taskSnap.data() as Task;
 
-    if (task.status !== TaskStatus.IN_PROGRESS || !task.volunteerId) {
+    if (
+      task.status !== TaskStatus.ACCEPTED &&
+      task.status !== 'in_progress' as any ||
+      !task.volunteerId
+    ) {
       throw new Error('Тек орындалып жатқан белсенді тапсырмаларды ғана аяқтауға болады');
     }
 
@@ -384,6 +425,14 @@ export async function completeTask(taskId: string): Promise<void> {
       status: TaskStatus.COMPLETED,
       updatedAt: now
     });
+
+    // Set participation to completed
+    const participationId = `${task.volunteerId}_${taskId}`;
+    await updateDoc(doc(db, 'participations', participationId), {
+      status: 'completed',
+      completedAt: now,
+      updatedAt: now
+    }).catch(() => {});
 
     // Increment completed tasks count for volunteer
     const volunteerRef = doc(db, 'users', task.volunteerId);
@@ -419,7 +468,8 @@ export async function submitReview(
   reviewerAvatar: string,
   targetUserId: string,
   rating: number,
-  text: string
+  text: string,
+  reviewerAvatarUrl?: string
 ): Promise<void> {
   const reviewId = generateId();
   const reviewPath = `reviews/${reviewId}`;
@@ -431,6 +481,7 @@ export async function submitReview(
     reviewerId,
     reviewerName,
     reviewerAvatar,
+    reviewerAvatarUrl: reviewerAvatarUrl || '',
     targetUserId,
     rating,
     text,
@@ -754,8 +805,8 @@ export async function getPlatformStats(): Promise<{
     tasksSnap.forEach((doc) => {
       totalTasks++;
       const t = doc.data() as Task;
-      if (t.status === TaskStatus.NEW) newTasks++;
-      if (t.status === TaskStatus.IN_PROGRESS) activeTasks++;
+      if (t.status === TaskStatus.ACTIVE || t.status === 'new' as any) newTasks++;
+      if (t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) activeTasks++;
       if (t.status === TaskStatus.COMPLETED) completedTasks++;
     });
 
@@ -787,5 +838,62 @@ export async function getPlatformStats(): Promise<{
       totalVolunteers: 0,
       totalReports: 0
     };
+  }
+}
+
+// Get user participation history log
+export async function getUserParticipations(userId: string): Promise<any[]> {
+  if (!userId) return [];
+  try {
+    const q = query(
+      collection(db, 'participations'),
+      where('userId', '==', userId),
+      orderBy('joinedAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    const list: any[] = [];
+    snap.forEach((d) => {
+      list.push(d.data());
+    });
+    return list;
+  } catch (e) {
+    console.error('Failed to fetch participations list:', e);
+    return [];
+  }
+}
+
+// Check and apply task expirations on-the-fly dynamically
+export async function checkAndApplyExpirations(tasks: Task[]): Promise<Task[]> {
+  const now = new Date().toISOString();
+  try {
+    const updated = await Promise.all(
+      tasks.map(async (task) => {
+        if (
+          task.endDateTime &&
+          task.status !== TaskStatus.EXPIRED &&
+          task.status !== TaskStatus.COMPLETED &&
+          task.status !== TaskStatus.BLOCKED &&
+          task.status !== TaskStatus.PENDING_REVIEW
+        ) {
+          if (now > task.endDateTime) {
+            try {
+              const taskDocRef = doc(db, 'tasks', task.id);
+              await updateDoc(taskDocRef, {
+                status: TaskStatus.EXPIRED,
+                updatedAt: now
+              });
+              return { ...task, status: TaskStatus.EXPIRED, updatedAt: now };
+            } catch (err) {
+              console.warn('Auto-expiration database save skipped for task:', task.id, err);
+            }
+          }
+        }
+        return task;
+      })
+    );
+    return updated;
+  } catch (err) {
+    console.warn('Auto-expiration processor failed:', err);
+    return tasks;
   }
 }

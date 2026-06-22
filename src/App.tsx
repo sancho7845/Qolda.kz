@@ -15,7 +15,8 @@ import {
   markAllNotificationsAsRead,
   getUserReviews,
   deleteTask,
-  subscribeTasks
+  subscribeTasks,
+  checkAndApplyExpirations
 } from './services/dbService';
 import { 
   Task, 
@@ -153,7 +154,8 @@ function QoldaApp() {
     setLoadingTasks(true);
     try {
       const allTasks = await getTasks(!!userProfile?.isAdmin);
-      setTasks(allTasks);
+      const withExpirations = await checkAndApplyExpirations(allTasks);
+      setTasks(withExpirations);
     } catch (e) {
       console.error(e);
     } finally {
@@ -180,8 +182,9 @@ function QoldaApp() {
     if (currentUser) {
       setLoadingTasks(true);
       unsubscribeTasks = subscribeTasks(
-        (allTasks) => {
-          setTasks(allTasks);
+        async (allTasks) => {
+          const withExpirations = await checkAndApplyExpirations(allTasks);
+          setTasks(withExpirations);
           setLoadingTasks(false);
         },
         (err) => {
@@ -308,7 +311,8 @@ function QoldaApp() {
         userProfile.avatarId || 'avatar_1',
         reviewModalTarget.id,
         rating,
-        text
+        text,
+        userProfile.avatarUrl || ''
       );
       setReviewModalTarget(null);
       alert('Бағалауыңыз бен пікіріңіз жеткізілді. Қолдау білдіргеніңізге рақмет!');
@@ -584,9 +588,18 @@ function QoldaApp() {
                 onClick={() => setActiveTab('my_dashboard')}
                 className="hidden md:flex items-center gap-2 cursor-pointer border border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-805 rounded-xl p-1.5 px-3 select-none"
               >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm ${AVATAR_STYLING[userProfile?.avatarId || 'avatar_1']}`}>
-                  {AVATAR_EMOJIS[userProfile?.avatarId || 'avatar_1']}
-                </div>
+                {userProfile?.avatarUrl ? (
+                  <img 
+                    src={userProfile.avatarUrl} 
+                    alt="" 
+                    className="w-6 h-6 rounded-full object-cover border border-teal-500/25 shrink-0" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-sm shrink-0 ${AVATAR_STYLING[userProfile?.avatarId || 'avatar_1']}`}>
+                    {AVATAR_EMOJIS[userProfile?.avatarId || 'avatar_1']}
+                  </div>
+                )}
                 <div className="text-[10px] text-left">
                   <div className="font-bold text-neutral-800 dark:text-neutral-200 truncate max-w-[100px] font-sans">{userProfile?.name}</div>
                   <div className="text-neutral-400 text-[8px] font-sans">{userProfile?.city}</div>
@@ -917,9 +930,18 @@ function QoldaApp() {
                       <h4 className="font-extrabold text-xs text-neutral-700 dark:text-neutral-300 font-sans">Тапсырма иесі (Көмек сұраушы):</h4>
                       <div className="flex items-center justify-between p-3.5 bg-neutral-50 dark:bg-neutral-850/20 border border-neutral-150 dark:border-neutral-800 rounded-xl">
                         <div className="flex items-center gap-3 bg-transparent">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0 ${AVATAR_STYLING[selectedTask.creatorAvatar || 'avatar_1']}`}>
-                            {AVATAR_EMOJIS[selectedTask.creatorAvatar || 'avatar_1']}
-                          </div>
+                          {selectedTask.creatorAvatarUrl ? (
+                            <img 
+                              src={selectedTask.creatorAvatarUrl} 
+                              alt="" 
+                              className="w-10 h-10 rounded-xl object-cover border border-teal-500/25 shrink-0 animate-in fade-in"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0 ${AVATAR_STYLING[selectedTask.creatorAvatar || 'avatar_1']}`}>
+                              {AVATAR_EMOJIS[selectedTask.creatorAvatar || 'avatar_1']}
+                            </div>
+                          )}
                           <div className="bg-transparent">
                             <div className="font-bold text-neutral-800 dark:text-neutral-150 font-sans">{selectedTask.creatorName}</div>
                             <div className="text-[9px] text-neutral-450 uppercase font-black tracking-wider">Профиль белсенді</div>
@@ -963,7 +985,7 @@ function QoldaApp() {
                         Жабу
                       </button>
 
-                      {selectedTask.status === TaskStatus.NEW && selectedTask.creatorId !== currentUser.uid && (
+                      {(selectedTask.status === TaskStatus.ACTIVE || selectedTask.status === 'new' as any) && selectedTask.creatorId !== currentUser.uid && (
                         <button
                           onClick={() => handleAcceptTask(selectedTask.id)}
                           className="py-2.5 px-6 bg-teal-600 hover:bg-teal-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1 shadow-sm cursor-pointer"
@@ -973,7 +995,7 @@ function QoldaApp() {
                         </button>
                       )}
 
-                      {selectedTask.status === TaskStatus.IN_PROGRESS && selectedTask.volunteerId === currentUser.uid && (
+                      {(selectedTask.status === TaskStatus.ACCEPTED || selectedTask.status === 'in_progress' as any) && selectedTask.volunteerId === currentUser.uid && (
                         <button
                           onClick={() => handleCancelAcceptance(selectedTask.id)}
                           className="py-2.5 px-5 border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-bold rounded-xl cursor-pointer"
@@ -982,7 +1004,7 @@ function QoldaApp() {
                         </button>
                       )}
 
-                      {selectedTask.status === TaskStatus.IN_PROGRESS && selectedTask.creatorId === currentUser.uid && (
+                      {(selectedTask.status === TaskStatus.ACCEPTED || selectedTask.status === 'in_progress' as any) && selectedTask.creatorId === currentUser.uid && (
                         <button
                           onClick={() => handleCompleteTask(selectedTask.id)}
                           className="py-2.5 px-5 bg-green-600 hover:bg-green-700 text-white text-xs font-extrabold rounded-xl cursor-pointer"

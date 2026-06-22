@@ -1,6 +1,6 @@
 import React from 'react';
 import { Map } from 'lucide-react';
-import { Task, CATEGORY_LABELS } from '../types';
+import { Task, TaskStatus, CATEGORY_LABELS } from '../types';
 import { InteractiveMap } from '../components/InteractiveMap';
 
 interface MapViewPageProps {
@@ -16,6 +16,21 @@ export default function MapViewPage({
   currentUser,
   handleAcceptTask,
 }: MapViewPageProps) {
+  // Filter only active/accepted (new/in_progress) tasks on the map
+  const activeMapTasks = tasks.filter((t) => {
+    const isExcludedStatus = 
+      t.status === TaskStatus.EXPIRED || 
+      t.status === TaskStatus.BLOCKED || 
+      t.status === TaskStatus.PENDING_REVIEW ||
+      t.status === TaskStatus.COMPLETED ||
+      t.status === 'expired' as any ||
+      t.status === 'blocked' as any ||
+      t.status === 'pending_review' as any ||
+      t.status === 'completed' as any;
+      
+    return !isExcludedStatus && t.latitude && t.longitude;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 p-5 rounded-2xl shadow-sm">
@@ -46,7 +61,7 @@ export default function MapViewPage({
           <InteractiveMap
             mode="view"
             theme={theme}
-            tasks={tasks}
+            tasks={activeMapTasks}
             currentUserId={currentUser?.uid}
             onAcceptTask={handleAcceptTask}
           />
@@ -59,15 +74,13 @@ export default function MapViewPage({
           Картадағы тапсырмалар тізімі / Tasks Listed on Map
         </h4>
         
-        {tasks.filter(t => t.status !== 'completed' && t.latitude && t.longitude).length === 0 ? (
+        {activeMapTasks.length === 0 ? (
           <div className="py-12 bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 border-dashed rounded-2xl text-center text-xs font-bold text-neutral-400">
             Картада белсенді тапсырмалар табылған жоқ.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-transparent">
-            {tasks
-              .filter(t => t.status !== 'completed' && t.latitude && t.longitude)
-              .map((task) => (
+            {activeMapTasks.map((task) => (
                 <div 
                   key={task.id}
                   className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 p-4 rounded-xl flex flex-col justify-between hover:border-teal-500/40 hover:shadow-md transition-all duration-200"
@@ -77,7 +90,7 @@ export default function MapViewPage({
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
                         {CATEGORY_LABELS[task.category] || task.category}
                       </span>
-                      <span className={`w-2 h-2 rounded-full ${task.status === 'new' ? 'bg-teal-500' : 'bg-amber-500'}`} />
+                      <span className={`w-2 h-2 rounded-full ${(task.status === TaskStatus.ACTIVE || task.status === 'new' as any) ? 'bg-teal-500' : 'bg-amber-500'}`} />
                     </div>
                     <h5 className="font-extrabold text-xs text-neutral-900 dark:text-white mb-1 line-clamp-1 font-sans">
                       {task.title}

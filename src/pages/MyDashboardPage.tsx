@@ -5,6 +5,8 @@ import {
   Check, 
   HeartHandshake 
 } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../services/firebase';
 import { 
   Task, 
   UserProfile, 
@@ -15,6 +17,7 @@ import {
   AVATAR_EMOJIS, 
   KAZAKHSTAN_CITIES 
 } from '../types';
+import { getUserParticipations } from '../services/dbService';
 
 interface MyDashboardPageProps {
   userProfile: UserProfile;
@@ -49,6 +52,65 @@ export default function MyDashboardPage({
   const [editCity, setEditCity] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
+
+  // Custom profile image upload states
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // allowed types: JPEG, PNG, WEBP
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Қате: Тек JPEG, PNG немесе WEBP форматтарын жүктеуге болады!');
+      return;
+    }
+
+    // max size 5MB
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('Қате: Суреттің көлемі 5 МБ-тан аспауы тиіс!');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const fileRef = ref(storage, `users/${currentUser.uid}/avatar`);
+      await uploadBytes(fileRef, file);
+      const downloadUrl = await getDownloadURL(fileRef);
+
+      // Save url to Firestore user doc
+      await updateUserBio({
+        avatarUrl: downloadUrl
+      });
+
+      alert('Профиль суреті жаңартылды');
+      await loadTasks();
+    } catch (err: any) {
+      console.error('Avatar upload details:', err);
+      alert('Суретті жүктеу сәтсіз аяқталды: ' + (err.message || String(err)));
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  // Participations log state
+  const [participations, setParticipations] = useState<any[]>([]);
+  const [loadingParticipations, setLoadingParticipations] = useState(false);
+
+  useEffect(() => {
+    if (currentUser?.uid) {
+      setLoadingParticipations(true);
+      getUserParticipations(currentUser.uid).then((list) => {
+        setParticipations(list);
+        setLoadingParticipations(false);
+      }).catch((e) => {
+        console.error(e);
+        setLoadingParticipations(false);
+      });
+    }
+  }, [currentUser?.uid, tasks]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,8 +233,42 @@ export default function MyDashboardPage({
           /* VIEW PROFILE PANEL */
           <div className="space-y-6 bg-transparent">
             <div className="flex items-center gap-4 bg-transparent">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${AVATAR_STYLING[userProfile?.avatarId || 'avatar_1']}`}>
-                {AVATAR_EMOJIS[userProfile?.avatarId || 'avatar_1']}
+              <div className="relative group shrink-0 select-none">
+                {userProfile?.avatarUrl ? (
+                  <img 
+                    src={userProfile.avatarUrl} 
+                    alt={userProfile.name} 
+                    referrerPolicy="no-referrer"
+                    className="w-14 h-14 rounded-2xl object-cover border-2 border-teal-500 shadow-sm"
+                  />
+                ) : (
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${AVATAR_STYLING[userProfile?.avatarId || 'avatar_1']}`}>
+                    {AVATAR_EMOJIS[userProfile?.avatarId || 'avatar_1']}
+                  </div>
+                )}
+                {uploadingAvatar ? (
+                  <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
+                    <span className="w-5 h-5 border-2 border-t-transparent border-teal-400 rounded-full animate-spin"></span>
+                  </div>
+                ) : (
+                  <label 
+                    htmlFor="avatar-upload-input" 
+                    className="absolute -bottom-1.5 -right-1.5 bg-teal-600 text-white p-1 rounded-full shadow-md cursor-pointer hover:bg-teal-700 transition-all border border-white dark:border-neutral-900 flex items-center justify-center scale-95"
+                    title="Профиль суретін жүктеу"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </label>
+                )}
+                <input 
+                  type="file" 
+                  id="avatar-upload-input" 
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleAvatarFileChange}
+                  className="hidden"
+                />
               </div>
               <div className="bg-transparent">
                 <h4 className="font-black text-lg text-neutral-900 dark:text-neutral-50 mb-0.5 font-sans">{userProfile?.name}</h4>
@@ -273,9 +369,18 @@ export default function MyDashboardPage({
                 <div key={r.id} className="p-3 bg-neutral-50 dark:bg-neutral-850/20 border border-neutral-100 dark:border-neutral-800 rounded-xl text-[11px]">
                   <div className="flex justify-between items-start mb-1.5 bg-transparent">
                     <div className="flex items-center gap-1.5 bg-transparent">
-                      <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${AVATAR_STYLING[r.reviewerAvatar || 'avatar_1']}`}>
-                        {AVATAR_EMOJIS[r.reviewerAvatar || 'avatar_1']}
-                      </div>
+                      {r.reviewerAvatarUrl ? (
+                        <img 
+                          src={r.reviewerAvatarUrl} 
+                          alt="" 
+                          className="w-4 h-4 rounded-full object-cover border border-teal-500/25 shrink-0" 
+                          referrerPolicy="no-referrer" 
+                        />
+                      ) : (
+                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${AVATAR_STYLING[r.reviewerAvatar || 'avatar_1']}`}>
+                          {AVATAR_EMOJIS[r.reviewerAvatar || 'avatar_1']}
+                        </div>
+                      )}
                       <span className="font-bold text-neutral-700 dark:text-neutral-300">{r.reviewerName}</span>
                     </div>
                     <span className="font-black text-amber-400 shrink-0">⭐ {r.rating}</span>
@@ -310,11 +415,14 @@ export default function MyDashboardPage({
                     <div className="flex items-center gap-2 bg-transparent">
                       <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm truncate font-sans">{t.title}</span>
                       <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full font-sans ${
-                        t.status === 'new' ? 'bg-blue-105 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
-                        t.status === 'in_progress' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                        'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        (t.status === TaskStatus.ACTIVE || t.status === 'new' as any) ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' :
+                        (t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-305' :
+                        t.status === TaskStatus.COMPLETED ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
+                        'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-400'
                       }`}>
-                        {STATUS_LABELS[t.status]}
+                        {t.status as any === 'new' ? STATUS_LABELS[TaskStatus.ACTIVE] :
+                         t.status as any === 'in_progress' ? STATUS_LABELS[TaskStatus.ACCEPTED] :
+                         STATUS_LABELS[t.status] || t.status}
                       </span>
                     </div>
                     <p className="text-neutral-500 dark:text-neutral-400 truncate text-xs">{t.description}</p>
@@ -326,7 +434,7 @@ export default function MyDashboardPage({
                   </div>
 
                   <div className="flex gap-2 shrink-0 bg-transparent">
-                    {t.status === TaskStatus.IN_PROGRESS && (
+                    {(t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) && (
                       <button
                         onClick={() => handleCompleteTask(t.id)}
                         className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-[10px] shadow-sm flex items-center gap-1 cursor-pointer transition-all shrink-0"
@@ -341,7 +449,7 @@ export default function MyDashboardPage({
                     >
                       Толығырақ
                     </button>
-                    {t.status === TaskStatus.NEW && (
+                    {(t.status === TaskStatus.ACTIVE || t.status === 'new' as any) && (
                       <button
                         onClick={() => handleDeleteTask(t.id)}
                         className="p-1 px-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer font-bold text-[10px]"
@@ -373,10 +481,12 @@ export default function MyDashboardPage({
                     <div className="flex items-center gap-2 bg-transparent">
                       <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm truncate font-sans">{t.title}</span>
                       <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full font-sans ${
-                        t.status === 'in_progress' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                        (t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
                         'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
                       }`}>
-                        {STATUS_LABELS[t.status]}
+                        {t.status as any === 'new' ? STATUS_LABELS[TaskStatus.ACTIVE] :
+                         t.status as any === 'in_progress' ? STATUS_LABELS[TaskStatus.ACCEPTED] :
+                         STATUS_LABELS[t.status] || t.status}
                       </span>
                     </div>
                     <p className="text-neutral-500 dark:text-neutral-400 text-xs truncate leading-relaxed">{t.description}</p>
@@ -390,7 +500,7 @@ export default function MyDashboardPage({
                     >
                       Көру және байланысу
                     </button>
-                    {t.status === TaskStatus.IN_PROGRESS && (
+                    {(t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) && (
                       <button
                         onClick={() => handleCancelAcceptance(t.id)}
                         className="px-3 py-1.5 border border-rose-200 text-rose-600 dark:border-rose-900/40 dark:text-rose-405 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg text-[10px] font-bold cursor-pointer"
@@ -401,6 +511,55 @@ export default function MyDashboardPage({
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+
+        {/* Part 3: Participation History (ҚАТЫСУ ТАРИХЫ) */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
+          <div className="bg-transparent">
+            <h3 className="text-base font-black text-neutral-900 dark:text-neutral-50 font-sans">Қатысу тарихы</h3>
+            <p className="text-neutral-500 dark:text-neutral-400 text-xs font-sans">Сіз қабылдаған, сәтті аяқтаған немесе бас тартқан ерікті жұмыстардың толық тарихы</p>
+          </div>
+
+          <div className="divide-y divide-neutral-105 dark:divide-neutral-800 bg-transparent">
+            {loadingParticipations ? (
+              <div className="p-8 text-center text-xs text-neutral-400 italic">Жүктелуде...</div>
+            ) : participations.length === 0 ? (
+              <div className="p-8 text-center text-xs text-neutral-400 italic font-sans bg-transparent">Әзірге қатысу тарихы бос. Тапсырмалар қабылдап, белсенділігіңізді арттырыңыз! 🤝</div>
+            ) : (
+              participations.map((p) => {
+                const dateVal = p.completedAt || p.joinedAt || p.updatedAt;
+                const formattedDate = dateVal ? new Date(dateVal).toLocaleString('kk-KZ', {
+                  day: 'numeric',
+                  month: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : '';
+
+                return (
+                  <div key={p.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1 max-w-md bg-transparent">
+                      <div className="flex items-center gap-2 bg-transparent">
+                        <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm font-sans">{p.taskTitle}</span>
+                        <span className={`px-2.5 py-0.5 text-[9px] font-extrabold rounded-full font-sans ${
+                          p.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
+                          p.status === 'accepted' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
+                          'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-450'
+                        }`}>
+                          {p.status === 'completed' ? 'Аяқталды ✅' :
+                           p.status === 'accepted' ? 'Жалғасуда ⏳' :
+                           'Бас тартылды ❌'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-neutral-450 dark:text-neutral-400">
+                        {p.status === 'completed' ? 'Мақұлданған уақыты' : 'Қосылған уақыты'}: <span className="font-semibold text-neutral-600 dark:text-neutral-350">{formattedDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

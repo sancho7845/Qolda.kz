@@ -35,17 +35,21 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
 };
 
 export enum TaskStatus {
-  NEW = 'new',
-  IN_PROGRESS = 'in_progress',
+  PENDING_REVIEW = 'pending_review',
+  ACTIVE = 'active',
+  ACCEPTED = 'accepted',
   COMPLETED = 'completed',
-  PENDING_REVIEW = 'pending_review'
+  EXPIRED = 'expired',
+  BLOCKED = 'blocked'
 }
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
-  [TaskStatus.NEW]: 'Жаңа',
-  [TaskStatus.IN_PROGRESS]: 'Орындалуда',
-  [TaskStatus.COMPLETED]: 'Аяқталды',
-  [TaskStatus.PENDING_REVIEW]: 'Тексерілуде (Шағым)'
+  [TaskStatus.PENDING_REVIEW]: 'Тексеруде',
+  [TaskStatus.ACTIVE]: 'Белсенді',
+  [TaskStatus.ACCEPTED]: 'Қабылданған',
+  [TaskStatus.COMPLETED]: 'Аяқталған',
+  [TaskStatus.EXPIRED]: 'Уақыты өткен',
+  [TaskStatus.BLOCKED]: 'Бұғатталған'
 };
 
 export interface UserProfile {
@@ -55,6 +59,7 @@ export interface UserProfile {
   city: string;
   phone?: string;
   avatarId?: string;
+  avatarUrl?: string;
   rating?: number;
   reviewsCount?: number;
   completedTasksCount?: number;
@@ -71,14 +76,18 @@ export interface Task {
   category: TaskCategory;
   priority: TaskPriority;
   deadline: string;
+  startDateTime: string;
+  endDateTime: string;
   status: TaskStatus;
   city: string;
   creatorId: string;
   creatorName: string;
   creatorAvatar?: string;
+  creatorAvatarUrl?: string;
   volunteerId?: string | null;
   volunteerName?: string | null;
   volunteerAvatar?: string | null;
+  volunteerAvatarUrl?: string | null;
   attachmentUrl?: string;
   createdAt: string;
   updatedAt: string;
@@ -94,12 +103,26 @@ export interface Task {
   locationSource?: 'manual' | 'geolocation' | null;
 }
 
+export interface Participation {
+  id: string;
+  userId: string;
+  userName: string;
+  taskId: string;
+  taskTitle: string;
+  taskCategory: string;
+  status: 'accepted' | 'completed' | 'cancelled';
+  joinedAt: string;
+  completedAt?: string;
+  updatedAt?: string;
+}
+
 export interface Review {
   id: string;
   taskId: string;
   reviewerId: string;
   reviewerName: string;
   reviewerAvatar?: string;
+  reviewerAvatarUrl?: string;
   targetUserId: string;
   rating: number; // 1-5
   text: string;

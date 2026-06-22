@@ -35,6 +35,17 @@ service cloud.firestore {
       );
     }
 
+    function isNotBanned() {
+      return isSignedIn() && (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == false
+      );
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
     // --- ENTITY SCHEMA VALIDATORS ---
 
     // User Validator
@@ -61,7 +72,7 @@ service cloud.firestore {
              data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|ecology|other)$') &&
              data.priority is string && data.priority.matches('^(high|medium|low)$') &&
              data.deadline is string && data.deadline.size() <= 100 &&
-             data.status is string && data.status.matches('^(new|in_progress|completed)$') &&
+             data.status is string && data.status.matches('^(new|in_progress|completed|pending_review|active|accepted|expired|blocked)$') &&
              data.city is string && data.city.size() <= 200 &&
              data.creatorId is string && data.creatorId.size() <= 128 &&
              data.creatorName is string && data.creatorName.size() <= 200 &&
@@ -145,28 +156,36 @@ service cloud.firestore {
 
     // 2. Tasks Route
     match /tasks/{taskId} {
-      allow read: if isSignedIn() && (
-                    request.auth.uid == existing().creatorId || 
-                    request.auth.uid == existing().volunteerId || 
-                    existing().status == 'new' || 
-                    isAdmin()
-                  );
-      allow create: if isSignedIn() && isValidId(taskId) && isValidTask(incoming()) &&
-                    incoming().creatorId == request.auth.uid && incoming().status == 'new';
-      allow update: if isSignedIn() && isValidId(taskId) && isValidTask(incoming()) && (
-                    // Creator updating details (cannot modify status to completed directly from new)
-                    (request.auth.uid == existing().creatorId && existing().status == 'new' && incoming().status == 'new') ||
-                    // Volunteer accepting task
-                    (existing().status == 'new' && incoming().status == 'in_progress' && incoming().volunteerId == request.auth.uid) ||
-                    // Volunteer opting out from accepted task (reset to new)
-                    (existing().status == 'in_progress' && incoming().status == 'new' && existing().volunteerId == request.auth.uid && incoming().volunteerId == null) ||
+      allow read: if isSignedIn();
+      allow create: if (isAdmin() || (isNotBanned() && isEmailVerified())) && 
+                    isValidId(taskId) && isValidTask(incoming()) &&
+                    incoming().creatorId == request.auth.uid && 
+                    (incoming().status == 'new' || incoming().status == 'active');
+      allow update: if (isAdmin() || (isNotBanned() && isEmailVerified())) && 
+                    isValidId(taskId) && isValidTask(incoming()) && (
+                    // Creator updating details (cannot modify status to completed directly from new/active)
+                    (request.auth.uid == existing().creatorId && 
+                     (existing().status == 'new' || existing().status == 'active') && 
+                     (incoming().status == 'new' || incoming().status == 'active')) ||
+                    // Volunteer accepting task (from active/new to accepted/in_progress)
+                    ((existing().status == 'new' || existing().status == 'active') && 
+                     (incoming().status == 'accepted' || incoming().status == 'in_progress') && 
+                     incoming().volunteerId == request.auth.uid) ||
+                    // Volunteer opting out from accepted task (reset to active/new)
+                    ((existing().status == 'accepted' || existing().status == 'in_progress') && 
+                     (incoming().status == 'active' || incoming().status == 'new') && 
+                     existing().volunteerId == request.auth.uid && 
+                     incoming().volunteerId == null) ||
                     // Creator confirming completion
-                    (request.auth.uid == existing().creatorId && existing().status == 'in_progress' && incoming().status == 'completed') ||
-                    // Admin override
-                    isAdmin()
+                    (request.auth.uid == existing().creatorId && 
+                     (existing().status == 'accepted' || existing().status == 'in_progress') && 
+                     incoming().status == 'completed') ||
+                    // Expiration / Auto-flag / status update
+                    ((incoming().status == 'expired' || incoming().status == 'blocked' || incoming().status == 'pending_review') && 
+                     incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
                   );
       allow delete: if isSignedIn() && isValidId(taskId) && (
-                    (request.auth.uid == existing().creatorId && existing().status == 'new') || 
+                    (request.auth.uid == existing().creatorId && (existing().status == 'new' || existing().status == 'active')) || 
                     isAdmin()
                   );
     }
@@ -174,8 +193,10 @@ service cloud.firestore {
     // 3. Reviews Route
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(reviewId) && isValidReview(incoming()) &&
-                    incoming().reviewerId == request.auth.uid && incoming().reviewerId != incoming().targetUserId;
+      allow create: if (isAdmin() || (isNotBanned() && isEmailVerified())) && 
+                    isValidId(reviewId) && isValidReview(incoming()) &&
+                    incoming().reviewerId == request.auth.uid && 
+                    incoming().reviewerId != incoming().targetUserId;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -198,9 +219,18 @@ service cloud.firestore {
     // 5. Reports Route
     match /reports/{reportId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn() && isValidId(reportId) && isValidReport(incoming()) &&
-                    incoming().reporterId == request.auth.uid && incoming().status == 'pending';
+      allow create: if (isAdmin() || (isNotBanned() && isEmailVerified())) && 
+                    isValidId(reportId) && isValidReport(incoming()) &&
+                    incoming().reporterId == request.auth.uid && 
+                    incoming().status == 'pending';
       allow update, delete: if isAdmin();
+    }
+
+    // 6. Participations Route
+    match /participations/{pId} {
+      allow read: if isSignedIn();
+      allow create, update: if (isAdmin() || (isNotBanned() && isEmailVerified()));
+      allow delete: if isAdmin();
     }
   }
 }

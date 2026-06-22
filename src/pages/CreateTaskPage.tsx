@@ -9,7 +9,7 @@ import {
   Info 
 } from 'lucide-react';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../services/firebase';
+import { storage, auth } from '../services/firebase';
 import { 
   createTask as dbCreateTask 
 } from '../services/dbService';
@@ -43,6 +43,8 @@ export default function CreateTaskPage({
   const [newTaskCat, setNewTaskCat] = useState<TaskCategory>(TaskCategory.OTHER);
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>(TaskPriority.MEDIUM);
   const [newTaskDeadline, setNewTaskDeadline] = useState('');
+  const [startDateTime, setStartDateTime] = useState('');
+  const [endDateTime, setEndDateTime] = useState('');
   const [newTaskCity, setNewTaskCity] = useState(userProfile?.city || '');
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -121,6 +123,21 @@ export default function CreateTaskPage({
     }
     if (userProfile.isBanned) {
       alert('Сіз бұғатталғансыз. Тапсырма жасай алмайсыз.');
+      return;
+    }
+
+    if (auth.currentUser && !auth.currentUser.emailVerified) {
+      alert('Тапсырма жариялау үшін бірінші электрондық поштаңызды растаңыз! (Please verify your email first)');
+      return;
+    }
+
+    if (!startDateTime) {
+      alert('Тапсырманың басталу уақытын (startDateTime) енгізу міндетті!');
+      return;
+    }
+
+    if (!endDateTime) {
+      alert('Тапсырманың аяқталу уақытын (endDateTime) енгізу міндетті!');
       return;
     }
 
@@ -244,6 +261,8 @@ export default function CreateTaskPage({
         newTaskCat,
         newTaskPriority,
         newTaskDeadline,
+        startDateTime,
+        endDateTime,
         newTaskCity,
         userProfile,
         attachmentUrl || undefined,
@@ -259,6 +278,8 @@ export default function CreateTaskPage({
       setNewTaskTitle('');
       setNewTaskDesc('');
       setNewTaskDeadline('');
+      setStartDateTime('');
+      setEndDateTime('');
       setAttachmentFile(null);
       setNewTaskAddress('');
       setNewTaskLatitude(null);
@@ -328,22 +349,43 @@ export default function CreateTaskPage({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-transparent">
           <div className="space-y-1 bg-transparent">
             <label className="text-xs font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-neutral-400" />
-              Аяқтаудың соңғы мерзімі:
+              <Calendar className="w-3.5 h-3.5 text-teal-650" />
+              Көмектің басталу уақыты (startDateTime): *
             </label>
             <input
-              type="date"
+              type="datetime-local"
               required
-              value={newTaskDeadline}
-              onChange={(e) => setNewTaskDeadline(e.target.value)}
+              value={startDateTime}
+              onChange={(e) => setStartDateTime(e.target.value)}
               className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none font-semibold"
             />
           </div>
 
           <div className="space-y-1 bg-transparent">
             <label className="text-xs font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-neutral-400" />
-              Көмек қажет қала:
+              <Calendar className="w-3.5 h-3.5 text-teal-650" />
+              Көмектің аяқталу уақыты (endDateTime): *
+            </label>
+            <input
+              type="datetime-local"
+              required
+              value={endDateTime}
+              onChange={(e) => {
+                setEndDateTime(e.target.value);
+                if (e.target.value) {
+                  setNewTaskDeadline(e.target.value.split('T')[0]);
+                }
+              }}
+              className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none font-semibold"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 bg-transparent">
+          <div className="space-y-1 bg-transparent">
+            <label className="text-xs font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-teal-650" />
+              Көмек қажет қала: *
             </label>
             <select
               value={newTaskCity}

@@ -9,7 +9,7 @@ import {
   updateReportStatus, 
   deleteTask 
 } from '../services/dbService';
-import { Report, UserProfile, Task } from '../types';
+import { Report, UserProfile, Task, AVATAR_STYLING, AVATAR_EMOJIS } from '../types';
 import { 
   Users, 
   Layers, 
@@ -544,7 +544,19 @@ export default function AdminPanel() {
                             <tr key={u.uid} className={`hover:bg-neutral-50/50 dark:hover:bg-neutral-850/20 ${u.isBanned ? 'bg-rose-50/20' : ''}`}>
                               <td className="px-5 py-4">
                                 <div className="font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
-                                  {u.name}
+                                  {u.avatarUrl ? (
+                                    <img 
+                                      src={u.avatarUrl} 
+                                      alt="" 
+                                      className="w-5.5 h-5.5 rounded-lg object-cover border border-teal-500/25 shrink-0" 
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className={`w-5.5 h-5.5 rounded-lg flex items-center justify-center text-xs shrink-0 ${AVATAR_STYLING[u.avatarId || 'avatar_1']}`}>
+                                      {AVATAR_EMOJIS[u.avatarId || 'avatar_1']}
+                                    </div>
+                                  )}
+                                  <span>{u.name}</span>
                                   {u.isBanned && (
                                     <span className="bg-rose-100 text-rose-800 text-[8px] font-bold px-1.5 py-0.5 rounded-sm">
                                       Бұғатталған

@@ -45,10 +45,15 @@ export default function TaskCard({
     [TaskPriority.LOW]: 'bg-emerald-50 text-emerald-700 border-emerald-150 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900',
   };
 
-  const statusColor = {
-    [TaskStatus.NEW]: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-    [TaskStatus.IN_PROGRESS]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-    [TaskStatus.COMPLETED]: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  const statusColor: Record<any, string> = {
+    [TaskStatus.ACTIVE]: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+    [TaskStatus.ACCEPTED]: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    [TaskStatus.COMPLETED]: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+    [TaskStatus.PENDING_REVIEW]: 'bg-orange-100 text-orange-850 dark:bg-orange-950/40 dark:text-orange-300',
+    [TaskStatus.EXPIRED]: 'bg-rose-100 text-rose-850 dark:bg-rose-950/40 dark:text-rose-300',
+    [TaskStatus.BLOCKED]: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300',
+    'new': 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+    'in_progress': 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   };
 
   // Human date helper
@@ -118,9 +123,18 @@ export default function TaskCard({
           </div>
           <div className="col-span-2 flex items-center gap-2 mt-1">
             <span className="text-[10px] text-neutral-400">Көмек сұраушы:</span>
-            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${AVATAR_STYLING[task.creatorAvatar || 'avatar_1']}`}>
-              {AVATAR_EMOJIS[task.creatorAvatar || 'avatar_1']}
-            </div>
+            {task.creatorAvatarUrl ? (
+              <img 
+                src={task.creatorAvatarUrl} 
+                alt="" 
+                className="w-5 h-5 rounded-full object-cover border border-teal-500/25 shrink-0 animate-in fade-in" 
+                referrerPolicy="no-referrer" 
+              />
+            ) : (
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${AVATAR_STYLING[task.creatorAvatar || 'avatar_1']}`}>
+                {AVATAR_EMOJIS[task.creatorAvatar || 'avatar_1']}
+              </div>
+            )}
             <span className="font-medium text-neutral-700 dark:text-neutral-200 truncate max-w-[120px]">
               {task.creatorName}
             </span>
@@ -129,13 +143,22 @@ export default function TaskCard({
       </div>
 
       {/* Volunteer Progress Details if any */}
-      {task.status !== TaskStatus.NEW && task.volunteerId && (
+      {task.status !== TaskStatus.ACTIVE && task.status !== 'new' as any && task.volunteerId && (
         <div className="bg-white/10 dark:bg-neutral-950/20 px-5 py-2.5 text-xs border-y border-white/20 dark:border-neutral-800/20 flex items-center gap-2">
           <HeartHandshake className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
           <span className="text-neutral-500 dark:text-neutral-400">Ерікті:</span>
-          <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${AVATAR_STYLING[task.volunteerAvatar || 'avatar_2']}`}>
-            {AVATAR_EMOJIS[task.volunteerAvatar || 'avatar_2']}
-          </div>
+          {task.volunteerAvatarUrl ? (
+            <img 
+              src={task.volunteerAvatarUrl} 
+              alt="" 
+              className="w-4 h-4 rounded-full object-cover border border-teal-500/25 shrink-0 animate-in fade-in" 
+              referrerPolicy="no-referrer" 
+            />
+          ) : (
+            <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${AVATAR_STYLING[task.volunteerAvatar || 'avatar_2']}`}>
+              {AVATAR_EMOJIS[task.volunteerAvatar || 'avatar_2']}
+            </div>
+          )}
           <span className="font-semibold text-neutral-700 dark:text-neutral-200 truncate font-mono">
             {task.volunteerName}
           </span>
@@ -153,7 +176,7 @@ export default function TaskCard({
         </button>
 
         {/* Conditionally reveal secondary actions */}
-        {task.status === TaskStatus.NEW && !isCreator && (
+        {(task.status === TaskStatus.ACTIVE || task.status === 'new' as any) && !isCreator && (
           <button
             onClick={() => onAccept(task.id)}
             className="flex-1 py-2 px-3 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs"
@@ -163,7 +186,7 @@ export default function TaskCard({
           </button>
         )}
 
-        {task.status === TaskStatus.IN_PROGRESS && isVolunteer && (
+        {(task.status === TaskStatus.ACCEPTED || task.status === 'in_progress' as any) && isVolunteer && (
           <button
             onClick={() => onCancelAcceptance(task.id)}
             className="flex-1 py-2 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 dark:text-rose-400 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all"
@@ -172,7 +195,7 @@ export default function TaskCard({
           </button>
         )}
 
-        {task.status === TaskStatus.IN_PROGRESS && isCreator && (
+        {(task.status === TaskStatus.ACCEPTED || task.status === 'in_progress' as any) && isCreator && (
           <button
             onClick={() => onComplete(task.id)}
             className="flex-1 py-2 px-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-xs animate-pulse"
@@ -182,7 +205,7 @@ export default function TaskCard({
           </button>
         )}
 
-        {task.status === TaskStatus.NEW && isCreator && (
+        {(task.status === TaskStatus.ACTIVE || task.status === 'new' as any) && isCreator && (
           <button
             onClick={() => onDelete(task.id)}
             className="py-2 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 dark:hover:bg-rose-950/40 rounded-xl transition-all"

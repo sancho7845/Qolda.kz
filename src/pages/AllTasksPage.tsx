@@ -70,6 +70,19 @@ export default function AllTasksPage({
 
   // Filtration and Sorting process
   const filteredTasks = tasks.filter((task) => {
+    // Hide expired, blocked, or pending review tasks from main list
+    const isExcludedStatus = 
+      task.status === TaskStatus.EXPIRED || 
+      task.status === TaskStatus.BLOCKED || 
+      task.status === TaskStatus.PENDING_REVIEW ||
+      task.status === 'expired' as any ||
+      task.status === 'blocked' as any ||
+      task.status === 'pending_review' as any;
+
+    if (isExcludedStatus) {
+      return false;
+    }
+
     // Search query matches
     const matchesSearch = 
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -83,7 +96,11 @@ export default function AllTasksPage({
     const matchesCity = selectedCity === 'all' || task.city === selectedCity;
 
     // Status matches
-    const matchesStatus = selectedStatus === 'all' || task.status === selectedStatus;
+    const matchesStatus = 
+      selectedStatus === 'all' || 
+      task.status === selectedStatus ||
+      (selectedStatus === TaskStatus.ACTIVE && task.status === 'new' as any) ||
+      (selectedStatus === TaskStatus.ACCEPTED && task.status === 'in_progress' as any);
 
     return matchesSearch && matchesCategory && matchesCity && matchesStatus;
   }).sort((a, b) => {
@@ -203,24 +220,24 @@ export default function AllTasksPage({
             Барлығы
           </button>
           <button
-            onClick={() => setSelectedStatus(TaskStatus.NEW)}
+            onClick={() => setSelectedStatus(TaskStatus.ACTIVE)}
             className={`px-3 py-1.5 xl:py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-              selectedStatus === TaskStatus.NEW 
+              selectedStatus === TaskStatus.ACTIVE 
                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-blue-600 text-white shadow-sm' 
                 : 'border-white/10 text-neutral-600 dark:border-neutral-800 dark:text-neutral-350 hover:bg-white/10 dark:hover:bg-neutral-800/20'
             }`}
           >
-            {STATUS_LABELS[TaskStatus.NEW]}
+            {STATUS_LABELS[TaskStatus.ACTIVE]}
           </button>
           <button
-            onClick={() => setSelectedStatus(TaskStatus.IN_PROGRESS)}
+            onClick={() => setSelectedStatus(TaskStatus.ACCEPTED)}
             className={`px-3 py-1.5 xl:py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-              selectedStatus === TaskStatus.IN_PROGRESS 
+              selectedStatus === TaskStatus.ACCEPTED 
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-500 border-amber-600 text-neutral-950 shadow-sm' 
                 : 'border-white/10 text-neutral-600 dark:border-neutral-800 dark:text-neutral-350 hover:bg-white/10 dark:hover:bg-neutral-800/20'
             }`}
           >
-            {STATUS_LABELS[TaskStatus.IN_PROGRESS]}
+            {STATUS_LABELS[TaskStatus.ACCEPTED]}
           </button>
           <button
             onClick={() => setSelectedStatus(TaskStatus.COMPLETED)}
