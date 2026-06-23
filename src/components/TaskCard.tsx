@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Task, TaskCategory, TaskPriority, TaskStatus, CATEGORY_LABELS, PRIORITY_LABELS, STATUS_LABELS, AVATAR_EMOJIS, AVATAR_STYLING } from '../types';
-import { MapPin, Calendar, Clock, Phone, AlertTriangle, ShieldCheck, HeartHandshake, Eye, Trash2, CheckCircle2, UserCheck } from 'lucide-react';
+import { MapPin, Calendar, Clock, Phone, AlertTriangle, ShieldCheck, HeartHandshake, Eye, Trash2, CheckCircle2, UserCheck, Heart } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface TaskCardProps {
   task: Task;
   currentUserId?: string;
+  isFavorited?: boolean;
+  onToggleFavorite?: (taskId: string) => void;
   onAccept: (taskId: string) => Promise<void> | void;
   onCancelAcceptance: (taskId: string) => Promise<void> | void;
   onComplete: (taskId: string) => Promise<void> | void;
@@ -18,6 +20,8 @@ interface TaskCardProps {
 export default function TaskCard({
   task,
   currentUserId,
+  isFavorited = false,
+  onToggleFavorite,
   onAccept,
   onCancelAcceptance,
   onComplete,
@@ -28,6 +32,15 @@ export default function TaskCard({
   const isCreator = currentUserId === task.creatorId;
   const isVolunteer = currentUserId === task.volunteerId;
 
+  const isStartingSoon = (() => {
+    if (!task.startDateTime) return false;
+    const taskStart = new Date(task.startDateTime);
+    const now = new Date();
+    const differenceMs = taskStart.getTime() - now.getTime();
+    const differenceHours = differenceMs / (1000 * 60 * 60);
+    return differenceHours > 0 && differenceHours <= 48;
+  })();
+
   const categoryIcons: Record<TaskCategory, string> = {
     [TaskCategory.ELDERLY]: '👵',
     [TaskCategory.DELIVERY]: '📦',
@@ -36,6 +49,9 @@ export default function TaskCard({
     [TaskCategory.TECHNOLOGY]: '💻',
     [TaskCategory.HEALTHCARE]: '💊',
     [TaskCategory.ECOLOGY]: '🌱',
+    [TaskCategory.SPORT]: '⚽',
+    [TaskCategory.ANIMALS]: '🐾',
+    [TaskCategory.CHARITY]: '❤️',
     [TaskCategory.OTHER]: '🤝',
   };
 
@@ -76,12 +92,33 @@ export default function TaskCard({
       {/* Header Badges */}
       <div className="p-5 pb-3">
         <div className="flex items-center justify-between mb-3">
-          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityColor[task.priority]}`}>
-            {PRIORITY_LABELS[task.priority]}
-          </span>
-          <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColor[task.status]}`}>
-            {STATUS_LABELS[task.status]}
-          </span>
+          <div className="flex gap-1.5 items-center">
+            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${priorityColor[task.priority]}`}>
+              {PRIORITY_LABELS[task.priority]}
+            </span>
+            <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColor[task.status]}`}>
+              {STATUS_LABELS[task.status]}
+            </span>
+            {isStartingSoon && (
+              <span className="px-2 py-1 bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider rounded-lg animate-pulse whitespace-nowrap">
+                🔥 Жақын арада
+              </span>
+            )}
+          </div>
+          {onToggleFavorite && currentUserId && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleFavorite(task.id);
+              }}
+              className="p-1.5 rounded-full hover:bg-rose-50/70 dark:hover:bg-neutral-800/40 text-rose-500 transition-colors cursor-pointer"
+              title="Таңдаулыға қосу"
+            >
+              <Heart className={`w-4 h-4 transition-all duration-200 ${isFavorited ? 'fill-rose-500 text-rose-500 scale-125' : 'text-neutral-400 dark:text-neutral-500 hover:scale-110'}`} />
+            </button>
+          )}
         </div>
 
         <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-50 mb-2 truncate">
@@ -117,10 +154,24 @@ export default function TaskCard({
               </a>
             </div>
           </div>
-          <div className="col-span-2 flex items-center gap-1.5 truncate">
-            <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-            <span className="truncate">{formatDate(task.deadline)}</span>
-          </div>
+          {task.startDateTime && task.endDateTime ? (
+            <div className="col-span-2 space-y-1 bg-amber-50/20 dark:bg-neutral-950/20 p-2.5 rounded-2xl border border-amber-500/10 mt-1">
+              <div className="flex items-center gap-1.5 text-[9px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">
+                <Clock className="w-3 h-3 text-amber-500 shrink-0" />
+                <span>Жұмыс уақыты жүйесі</span>
+              </div>
+              <div className="text-[10px] font-semibold text-neutral-600 dark:text-neutral-350 space-y-0.5">
+                <div>Басталуы: <span className="font-mono text-neutral-800 dark:text-neutral-100">{new Date(task.startDateTime).toLocaleString('kk-KZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div>Аяқталуы: <span className="font-mono text-neutral-850 dark:text-neutral-100">{new Date(task.endDateTime).toLocaleString('kk-KZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div className="text-[9px] text-neutral-450 dark:text-neutral-550 pt-0.5">Ұзақтығы: <span className="font-extrabold text-teal-650 dark:text-teal-400">{task.durationHours} сағат</span></div>
+              </div>
+            </div>
+          ) : (
+            <div className="col-span-2 flex items-center gap-1.5 truncate">
+              <Calendar className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <span className="truncate">{formatDate(task.deadline)}</span>
+            </div>
+          )}
           <div className="col-span-2 flex items-center gap-2 mt-1">
             <span className="text-[10px] text-neutral-400">Көмек сұраушы:</span>
             {task.creatorAvatarUrl ? (

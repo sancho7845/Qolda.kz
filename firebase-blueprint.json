@@ -94,6 +94,20 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Filing timestamp" }
       },
       "required": ["id", "reporterId", "reporterName", "targetType", "targetId", "targetLabel", "reason", "status", "createdAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Certificate document confirming volunteer hours of service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique certificate internal ID" },
+        "userId": { "type": "string", "description": "The UID of the volunteer receiving the certificate" },
+        "userName": { "type": "string", "description": "The full name of the volunteer" },
+        "totalHours": { "type": "number", "description": "The total logged volunteer hours of service" },
+        "issuedAt": { "type": "string", "format": "date-time", "description": "Date and time when the certificate was issued" },
+        "certificateId": { "type": "string", "description": "The custom certificate serial identifier displayed on the doc" }
+      },
+      "required": ["id", "userId", "userName", "totalHours", "issuedAt", "certificateId"]
     }
   },
   "firestore": {
@@ -116,6 +130,10 @@
     "/reports/{reportId}": {
       "schema": "Report",
       "description": "Flagged posts and users for admin moderations"
+    },
+    "/certificates/{certificateId}": {
+      "schema": "Certificate",
+      "description": "Certificates issued to active volunteers with 50+ hours of service"
     }
   }
 }

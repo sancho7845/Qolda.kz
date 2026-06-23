@@ -38,12 +38,12 @@ service cloud.firestore {
     function isNotBanned() {
       return isSignedIn() && (
         !exists(/databases/$(database)/documents/users/$(request.auth.uid)) || 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == false
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned != true
       );
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn();
     }
 
     // --- ENTITY SCHEMA VALIDATORS ---
@@ -56,10 +56,15 @@ service cloud.firestore {
              data.city is string && data.city.size() <= 100 &&
              (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 30)) &&
              (!('avatarId' in data) || data.avatarId == null || (data.avatarId is string && data.avatarId.size() <= 50)) &&
+             (!('avatarUrl' in data) || data.avatarUrl == null || (data.avatarUrl is string && data.avatarUrl.size() <= 2000)) &&
              (!('rating' in data) || data.rating == null || (data.rating is number)) &&
              (!('reviewsCount' in data) || data.reviewsCount == null || (data.reviewsCount is int)) &&
              (!('completedTasksCount' in data) || data.completedTasksCount == null || (data.completedTasksCount is int)) &&
              (!('acceptedTasksCount' in data) || data.acceptedTasksCount == null || (data.acceptedTasksCount is int)) &&
+             (!('totalVolunteerHours' in data) || data.totalVolunteerHours == null || (data.totalVolunteerHours is number)) &&
+             (!('penaltyPoints' in data) || data.penaltyPoints == null || (data.penaltyPoints is int)) &&
+             (!('favoriteTaskIds' in data) || data.favoriteTaskIds == null || (data.favoriteTaskIds is list)) &&
+             (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100)) &&
              data.isAdmin is bool &&
              data.isBanned is bool;
     }
@@ -69,17 +74,21 @@ service cloud.firestore {
       return data.id is string && data.id.size() <= 128 &&
              data.title is string && data.title.size() <= 500 &&
              data.description is string && data.description.size() <= 10000 &&
-             data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|ecology|other)$') &&
+             data.category is string && data.category.matches('^(elderly|delivery|moving|education|technology|healthcare|ecology|sport|animals|charity|other)$') &&
              data.priority is string && data.priority.matches('^(high|medium|low)$') &&
              data.deadline is string && data.deadline.size() <= 100 &&
+             (!('startDateTime' in data) || data.startDateTime == null || (data.startDateTime is string && data.startDateTime.size() <= 100)) &&
+             (!('endDateTime' in data) || data.endDateTime == null || (data.endDateTime is string && data.endDateTime.size() <= 100)) &&
              data.status is string && data.status.matches('^(new|in_progress|completed|pending_review|active|accepted|expired|blocked)$') &&
              data.city is string && data.city.size() <= 200 &&
              data.creatorId is string && data.creatorId.size() <= 128 &&
              data.creatorName is string && data.creatorName.size() <= 200 &&
              (!('creatorAvatar' in data) || data.creatorAvatar == null || (data.creatorAvatar is string && data.creatorAvatar.size() <= 100)) &&
+             (!('creatorAvatarUrl' in data) || data.creatorAvatarUrl == null || (data.creatorAvatarUrl is string && data.creatorAvatarUrl.size() <= 2000)) &&
              (!('volunteerId' in data) || data.volunteerId == null || (data.volunteerId is string && data.volunteerId.size() <= 128)) &&
              (!('volunteerName' in data) || data.volunteerName == null || (data.volunteerName is string && data.volunteerName.size() <= 200)) &&
              (!('volunteerAvatar' in data) || data.volunteerAvatar == null || (data.volunteerAvatar is string && data.volunteerAvatar.size() <= 100)) &&
+             (!('volunteerAvatarUrl' in data) || data.volunteerAvatarUrl == null || (data.volunteerAvatarUrl is string && data.volunteerAvatarUrl.size() <= 2000)) &&
              (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 2000)) &&
              (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 1000)) &&
              (!('attachmentSize' in data) || data.attachmentSize == null || (data.attachmentSize is number)) &&
@@ -91,6 +100,10 @@ service cloud.firestore {
              (!('latitude' in data) || data.latitude == null || (data.latitude is number)) &&
              (!('longitude' in data) || data.longitude == null || (data.longitude is number)) &&
              (!('locationSource' in data) || data.locationSource == null || (data.locationSource is string && data.locationSource.size() <= 100)) &&
+             (!('durationHours' in data) || data.durationHours == null || (data.durationHours is number)) &&
+             (!('reportsCount' in data) || data.reportsCount == null || (data.reportsCount is int || data.reportsCount is number)) &&
+             (!('reportedByUserIds' in data) || data.reportedByUserIds == null || (data.reportedByUserIds is list)) &&
+             (!('reportPhotoUrl' in data) || data.reportPhotoUrl == null || (data.reportPhotoUrl is string && data.reportPhotoUrl.size() <= 2000)) &&
              (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 100)) &&
              (!('updatedAt' in data) || data.updatedAt == null || (data.updatedAt is string && data.updatedAt.size() <= 100));
     }
@@ -102,6 +115,7 @@ service cloud.firestore {
              data.reviewerId is string && data.reviewerId.size() <= 128 &&
              data.reviewerName is string && data.reviewerName.size() <= 100 &&
              (!('reviewerAvatar' in data) || data.reviewerAvatar == null || (data.reviewerAvatar is string && data.reviewerAvatar.size() <= 50)) &&
+             (!('reviewerAvatarUrl' in data) || data.reviewerAvatarUrl == null || (data.reviewerAvatarUrl is string && data.reviewerAvatarUrl.size() <= 2000)) &&
              data.targetUserId is string && data.targetUserId.size() <= 128 &&
              data.rating is int && data.rating >= 1 && data.rating <= 5 &&
              data.text is string && data.text.size() <= 1000 &&
@@ -131,6 +145,16 @@ service cloud.firestore {
              data.reason is string && data.reason.size() <= 1000 &&
              data.status is string && data.status.matches('^(pending|resolved)$') &&
              (!('createdAt' in data) || data.createdAt == null || (data.createdAt is string && data.createdAt.size() <= 50));
+    }
+
+    // Certificate Validator
+    function isValidCertificate(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() <= 200 &&
+             data.totalHours is number &&
+             data.issuedAt is string && data.issuedAt.size() <= 100 &&
+             data.certificateId is string && data.certificateId.size() <= 50;
     }
 
     // --- COLLECTION ROUTES ---
@@ -231,6 +255,18 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if (isAdmin() || (isNotBanned() && isEmailVerified()));
       allow delete: if isAdmin();
+    }
+
+    // 7. Certificates Route
+    match /certificates/{certificateId} {
+      allow read: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidId(certificateId) && isValidCertificate(incoming()) &&
+                    incoming().userId == request.auth.uid &&
+                    incoming().totalHours >= 50 &&
+                    (
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.totalVolunteerHours >= 50
+                    );
+      allow update, delete: if isAdmin();
     }
   }
 }

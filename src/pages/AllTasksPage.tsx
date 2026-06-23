@@ -42,6 +42,7 @@ interface AllTasksPageProps {
   setSelectedTask: (t: Task) => void;
   setReportModalTarget: (t: Task) => void;
   setActiveTab: (tab: 'all_tasks' | 'map_view' | 'my_dashboard' | 'create_task' | 'admin') => void;
+  onToggleFavorite: (taskId: string) => void;
 }
 
 export default function AllTasksPage({
@@ -66,7 +67,12 @@ export default function AllTasksPage({
   setSelectedTask,
   setReportModalTarget,
   setActiveTab,
+  onToggleFavorite,
 }: AllTasksPageProps) {
+
+  // Local state for time filtering and starting soon
+  const [selectedTime, setSelectedTime] = React.useState<string>('all');
+  const [startingSoonOnly, setStartingSoonOnly] = React.useState<boolean>(false);
 
   // Filtration and Sorting process
   const filteredTasks = tasks.filter((task) => {
@@ -101,6 +107,42 @@ export default function AllTasksPage({
       task.status === selectedStatus ||
       (selectedStatus === TaskStatus.ACTIVE && task.status === 'new' as any) ||
       (selectedStatus === TaskStatus.ACCEPTED && task.status === 'in_progress' as any);
+
+    // Time filter matching
+    if (selectedTime !== 'all') {
+      if (!task.startDateTime) return false;
+      const taskStart = new Date(task.startDateTime);
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const weekLater = new Date(today);
+      weekLater.setDate(weekLater.getDate() + 7);
+
+      const taskDateOnly = new Date(taskStart);
+      taskDateOnly.setHours(0,0,0,0);
+
+      if (selectedTime === 'today') {
+        if (taskDateOnly.getTime() !== today.getTime()) return false;
+      } else if (selectedTime === 'tomorrow') {
+        if (taskDateOnly.getTime() !== tomorrow.getTime()) return false;
+      } else if (selectedTime === 'this_week') {
+        if (taskStart < new Date() || taskStart > weekLater) return false;
+      }
+    }
+
+    // Starting soon filter matching ("Жақын арада басталатындар")
+    if (startingSoonOnly) {
+      if (!task.startDateTime) return false;
+      const taskStart = new Date(task.startDateTime);
+      const now = new Date();
+      const differenceMs = taskStart.getTime() - now.getTime();
+      const differenceHours = differenceMs / (1000 * 60 * 60);
+      // Start is in the future AND starts within the next 48 hours
+      if (differenceHours < 0 || differenceHours > 48) {
+        return false;
+      }
+    }
 
     return matchesSearch && matchesCategory && matchesCity && matchesStatus;
   }).sort((a, b) => {
@@ -146,7 +188,7 @@ export default function AllTasksPage({
         </div>
 
         {/* Search box and filtering drop-downs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-3 border-t border-white/20 dark:border-neutral-800/30 bg-transparent">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 pt-3 border-t border-white/20 dark:border-neutral-800/30 bg-transparent">
           
           {/* Input search */}
           <div className="relative lg:col-span-2 bg-transparent">
@@ -181,10 +223,24 @@ export default function AllTasksPage({
               onChange={(e) => setSelectedCity(e.target.value)}
               className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-800 text-neutral-800 dark:text-neutral-50 outline-none font-bold"
             >
-              <option value="all">Қазақстанның барлық қалалары</option>
+              <option value="all">Барлық қалалар</option>
               {KAZAKHSTAN_CITIES.map((c) => (
                 <option key={c} value={c} className="dark:text-neutral-900 bg-neutral-100 dark:bg-neutral-900">{c}</option>
               ))}
+            </select>
+          </div>
+
+          {/* Time Filter */}
+          <div className="flex items-center gap-1.5 font-sans bg-transparent">
+            <select
+              value={selectedTime}
+              onChange={(e) => setSelectedTime(e.target.value)}
+              className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-800 text-neutral-800 dark:text-neutral-50 outline-none font-bold"
+            >
+              <option value="all">Кез келген уақыт</option>
+              <option value="today">Бүгін</option>
+              <option value="tomorrow">Ертең</option>
+              <option value="this_week">Осы аптада</option>
             </select>
           </div>
 
@@ -193,10 +249,10 @@ export default function AllTasksPage({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-800 text-neutral-800 dark:text-neutral-50 outline-none font-bold"
+              className="w-full p-3 rounded-xl border border-neutral-250 focus:border-teal-500 bg-transparent text-xs dark:border-neutral-800 text-neutral-800 dark:text-neutral-50 outline-none font-bold align-middle"
             >
-              <option value="newest">Жарияланған күні бойынша (Жаңа)</option>
-              <option value="deadline">Орындалу мерзімі бойымен</option>
+              <option value="newest font-bold">Жарияланған күні (Жаңа)</option>
+              <option value="deadline">Орындалу мерзімі бойынша</option>
               <option value="priority">Орны бойынша (Басымдық)</option>
             </select>
           </div>
@@ -249,6 +305,19 @@ export default function AllTasksPage({
           >
             {STATUS_LABELS[TaskStatus.COMPLETED]}
           </button>
+
+          <div className="h-4 w-[1px] bg-neutral-200 dark:bg-neutral-800 mx-1" />
+
+          <button
+            onClick={() => setStartingSoonOnly(!startingSoonOnly)}
+            className={`px-3 py-1.5 xl:py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+              startingSoonOnly 
+                ? 'bg-amber-600 border-amber-700 text-white shadow-sm' 
+                : 'border-white/10 text-neutral-600 dark:border-neutral-800 dark:text-neutral-350 hover:bg-white/10 dark:hover:bg-neutral-800/20'
+            }`}
+          >
+            🔥 Жақын арада басталатындар (<span className="font-mono">48h</span>)
+          </button>
         </div>
       </div>
 
@@ -273,6 +342,8 @@ export default function AllTasksPage({
               key={task.id}
               task={task}
               currentUserId={currentUser?.uid}
+              isFavorited={(userProfile?.favoriteTaskIds || []).includes(task.id)}
+              onToggleFavorite={onToggleFavorite}
               onAccept={handleAcceptTask}
               onCancelAcceptance={handleCancelAcceptance}
               onComplete={handleCompleteTask}

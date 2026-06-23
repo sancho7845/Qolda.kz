@@ -78,27 +78,13 @@ export function spamFilter(text: string): { isSpam: boolean; reason?: string } {
     }
   }
 
-  // 5. Links validation (көп сілтемелерді реттеу)
-  const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|net|org|ru|xyz|info|biz|co|cc|top|click)\b)/gi;
-  const links = text.match(urlPattern);
-  if (links && links.length > 1) {
+  // 5. Links validation (күмәнді сілтемелерді мүлдем болдырмау)
+  const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|net|org|ru|xyz|info|biz|co|cc|top|click|kz|online|club)\b)/gi;
+  if (urlPattern.test(text)) {
     return {
       isSpam: true,
-      reason: 'Мәтінде тым көп сілтемелер анықталды (максимум 1 сілтеме рұқсат етілген).'
+      reason: 'Мәтінде күдікті сілтеме немесе веб-сайт анықталды (мысалы, http, https, www немесе домендер .ru, .com, .net, .kz, .xyz т.б.). Қауіпсіздік мақсатында сілтемелерді жариялауға тыйым салынады!'
     };
-  }
-
-  if (links && links.length === 1) {
-    const singleLink = links[0].toLowerCase();
-    const badDomains = ['casin', 'vulkan', '1xb', 'xbet', 'bett', 'slot', 'win', 'olimp', 'pinup'];
-    for (const b of badDomains) {
-      if (singleLink.includes(b)) {
-        return {
-          isSpam: true,
-          reason: 'Қауіпсіздік ережелеріне байланысты күмәнді жарнамалық немесе құмар ойын сілтемесін енгізуге болмайды!'
-        };
-      }
-    }
   }
 
   return { isSpam: false };

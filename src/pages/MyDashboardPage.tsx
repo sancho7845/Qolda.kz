@@ -2,22 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { 
   StarIcon, 
   MessageSquare, 
-  Check, 
-  HeartHandshake 
+  HeartHandshake,
+  Award,
+  Gift,
+  Download,
+  ShieldCheck,
+  Heart,
+  Bell,
+  Clock,
+  Sparkles,
+  ChevronRight,
+  ShieldAlert,
+  BarChart,
+  Settings,
+  HelpCircle,
+  Activity,
+  Camera,
+  RefreshCw
 } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../services/firebase';
 import { 
   Task, 
   UserProfile, 
-  STATUS_LABELS, 
-  TaskStatus, 
-  PRESET_AVATARS, 
   AVATAR_STYLING, 
-  AVATAR_EMOJIS, 
-  KAZAKHSTAN_CITIES 
+  AVATAR_EMOJIS 
 } from '../types';
-import { getUserParticipations } from '../services/dbService';
 
 interface MyDashboardPageProps {
   userProfile: UserProfile;
@@ -31,6 +41,8 @@ interface MyDashboardPageProps {
   setSelectedTask: (task: Task | null) => void;
   updateUserBio: (data: Partial<UserProfile>) => Promise<void>;
   loadTasks: () => Promise<void>;
+  setActiveTab: (tab: 'all_tasks' | 'map_view' | 'my_dashboard' | 'create_task' | 'admin' | 'achievements' | 'certificates' | 'notifications' | 'history' | 'statistics' | 'leaderboard' | 'settings' | 'reports') => void;
+  unreadNotificationsCount?: number;
 }
 
 export default function MyDashboardPage({
@@ -45,29 +57,30 @@ export default function MyDashboardPage({
   setSelectedTask,
   updateUserBio,
   loadTasks,
+  setActiveTab,
+  unreadNotificationsCount = 0
 }: MyDashboardPageProps) {
-  // Editing profile states
-  const [editProfileMode, setEditProfileMode] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editCity, setEditCity] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editAvatar, setEditAvatar] = useState('');
+  
+  if (!currentUser || !userProfile) {
+    return (
+      <div className="py-12 text-center text-xs font-bold text-neutral-400 font-sans">
+        Пайдаланушы профилі жүктелуде немесе табылмады...
+      </div>
+    );
+  }
 
-  // Custom profile image upload states
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // allowed types: JPEG, PNG, WEBP
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       alert('Қате: Тек JPEG, PNG немесе WEBP форматтарын жүктеуге болады!');
       return;
     }
 
-    // max size 5MB
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       alert('Қате: Суреттің көлемі 5 МБ-тан аспауы тиіс!');
@@ -77,15 +90,14 @@ export default function MyDashboardPage({
     setUploadingAvatar(true);
     try {
       const fileRef = ref(storage, `users/${currentUser.uid}/avatar`);
-      await uploadBytes(fileRef, file);
+      await uploadBytes(fileRef, file, { contentType: file.type });
       const downloadUrl = await getDownloadURL(fileRef);
 
-      // Save url to Firestore user doc
       await updateUserBio({
         avatarUrl: downloadUrl
       });
 
-      alert('Профиль суреті жаңартылды');
+      alert('Профиль суреті сәтті жаңартылды!');
       await loadTasks();
     } catch (err: any) {
       console.error('Avatar upload details:', err);
@@ -95,476 +107,274 @@ export default function MyDashboardPage({
     }
   };
 
-  // Participations log state
-  const [participations, setParticipations] = useState<any[]>([]);
-  const [loadingParticipations, setLoadingParticipations] = useState(false);
+  // Determine current tier/level
+  const completed = userProfile?.completedTasksCount || 0;
+  const totalHours = userProfile?.totalVolunteerHours || 0;
+  const ratingVal = userProfile?.rating || 5;
+  const penalties = userProfile?.penaltyPoints || 0;
+  const acceptedCount = userProfile?.acceptedTasksCount || 0;
 
-  useEffect(() => {
-    if (currentUser?.uid) {
-      setLoadingParticipations(true);
-      getUserParticipations(currentUser.uid).then((list) => {
-        setParticipations(list);
-        setLoadingParticipations(false);
-      }).catch((e) => {
-        console.error(e);
-        setLoadingParticipations(false);
-      });
+  const currentLevel = (() => {
+    if (completed <= 2) return 'Жаңадан келген';
+    if (completed <= 10) return 'Белсенді волонтер';
+    if (completed <= 25) return 'Тәжірибелі волонтер';
+    return 'Лидер';
+  })();
+
+  const trustStatus = penalties >= 3 ? 'Төмен сенімді' : (userProfile?.trustStatus || 'Жоғары сенімді');
+  const currentTier = `${currentLevel} (${trustStatus})`;
+
+  // Core platform shortcuts matching the requested pages
+  const shortcuts = [
+    {
+      id: 'achievements',
+      title: 'Жетістіктер мен медальдар',
+      desc: 'Сіздің марапаттарыңыз, ерекше медальдарыңыз бен ағымдағы деңгейіңіз',
+      icon: <Award className="w-6 h-6 text-amber-500" />,
+      tag: 'Жаңа ✨',
+      tabKey: 'achievements' as const,
+    },
+    {
+      id: 'certificates',
+      title: 'Сертификаттар',
+      desc: '50 волонтерлік сағат жинап, ресми растау сертификатын жүктеңіз',
+      icon: <Download className="w-6 h-6 text-teal-600" />,
+      tag: `${totalHours}/50 сағ`,
+      tabKey: 'certificates' as const,
+    },
+    {
+      id: 'notifications',
+      title: 'Хабарламалар орталығы',
+      desc: 'Барлық жүйелік ескертулер мен маңызды жаңалықтар',
+      icon: <Bell className="w-6 h-6 text-indigo-505 text-indigo-500" />,
+      tag: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} жаңа` : undefined,
+      tabKey: 'notifications' as const,
+    },
+    {
+      id: 'history',
+      title: 'Қатысу тарихы',
+      desc: 'Жариялаған өтініштеріңіз, қабылдаған ерікті істеріңіз бен тарихыңыз',
+      icon: <Activity className="w-6 h-6 text-sky-500" />,
+      tabKey: 'history' as const,
+    },
+    {
+      id: 'statistics',
+      title: 'Жеке статистика',
+      desc: 'Сағаттық белсенділік, аяқтаған істеріңіз бен бағыттардың жіктелуі',
+      icon: <BarChart className="w-6 h-6 text-teal-500" />,
+      tabKey: 'statistics' as const,
+    },
+    {
+      id: 'leaderboard',
+      title: 'Үздік волонтерлер',
+      desc: 'Платформадағы ең белсенді еріктілердің көшбасшылық рейтингі',
+      icon: <Award className="w-6 h-6 text-yellow-500" />,
+      tabKey: 'leaderboard' as const,
+    },
+    {
+      id: 'settings',
+      title: 'Профиль баптаулары',
+      desc: 'Есіміңізді, тұратын қалаңызды өзгерту және профиль суретін жүктеу',
+      icon: <Settings className="w-6 h-6 text-neutral-500" />,
+      tabKey: 'settings' as const,
+    },
+    {
+      id: 'reports',
+      title: 'Менің шағымдарым',
+      desc: 'Қауіпсіздік пен ережелерді сақтау мақсатында жіберілген шағымдар тізімі',
+      icon: <ShieldAlert className="w-6 h-6 text-rose-505 text-rose-500" />,
+      tabKey: 'reports' as const,
     }
-  }, [currentUser?.uid, tasks]);
-
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userProfile) return;
-    try {
-      await updateUserBio({
-        name: editName,
-        city: editCity,
-        phone: editPhone,
-        avatarId: editAvatar
-      });
-      setEditProfileMode(false);
-      await loadTasks();
-      alert('Профиль мәліметтеріңіз сәтті өзгертілді!');
-    } catch (err: any) {
-      alert('Профильді жаңарту сәтсіз өтті: ' + String(err));
-    }
-  };
-
-  const handleOpenEditProfile = () => {
-    if (!userProfile) return;
-    setEditName(userProfile.name);
-    setEditCity(userProfile.city);
-    setEditPhone(userProfile.phone || '');
-    setEditAvatar(userProfile.avatarId || 'avatar_1');
-    setEditProfileMode(true);
-  };
-
-  if (!currentUser || !userProfile) {
-    return (
-      <div className="py-12 text-center text-xs font-bold text-neutral-400 font-sans">
-        Профиль деректері жүктелуде немесе табылмады...
-      </div>
-    );
-  }
+  ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start bg-transparent">
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 font-sans animate-in fade-in" id="dashboard_page_wrapper">
       
-      {/* Profile Panel Column */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-6">
+      {/* Visual Welcome header */}
+      <div>
+        <h1 className="text-2xl font-black text-neutral-900 dark:text-neutral-50 flex items-center gap-2">
+          Қош келдіңіз, <span className="text-teal-600 dark:text-teal-400">{userProfile.name}</span>!
+        </h1>
+        <p className="text-neutral-500 dark:text-neutral-400 text-sm mt-1">
+          Мұнда сіз өзіңіздің волонтерлік жеке кабинетіңізді толықтай басқарып, барлық беттерге оңай өте аласыз
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {editProfileMode ? (
-          
-          /* EDIT PROFILE FORM BOARD */
-          <form onSubmit={handleUpdateProfile} className="space-y-4 bg-transparent">
-            <h4 className="font-black text-sm text-neutral-800 dark:text-neutral-100 font-sans bg-transparent">Профильді өңдеу</h4>
-            
-            <div className="space-y-1 bg-transparent">
-              <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450">Өзгерту аватары:</label>
-              <div className="grid grid-cols-6 gap-2 bg-transparent">
-                {PRESET_AVATARS.map((avId) => (
-                  <button
-                    type="button"
-                    key={avId}
-                    onClick={() => setEditAvatar(avId)}
-                    className={`aspect-square rounded-lg flex items-center justify-center text-lg transition-all ${AVATAR_STYLING[avId]} ${
-                      editAvatar === avId ? 'ring-2 ring-teal-500 scale-105' : 'opacity-60'
-                    }`}
-                  >
-                    {AVATAR_EMOJIS[avId]}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Left column: Micro profile summary card */}
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 h-fit space-y-5 shadow-xs flex flex-col justify-between">
+          <div className="space-y-4">
+            <h3 className="text-xs font-black text-neutral-400 uppercase tracking-widest block">Қысқаша Профиль</h3>
 
-            <div className="space-y-1 bg-transparent">
-              <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450">Аты-жөніңіз:</label>
-              <input
-                type="text"
-                required
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full p-2 rounded-lg border border-neutral-250 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none"
-              />
-            </div>
-
-            <div className="space-y-1 bg-transparent">
-              <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450">Тұрғылықты қалаңыз:</label>
-              <select
-                value={editCity}
-                onChange={(e) => setEditCity(e.target.value)}
-                className="w-full p-2 rounded-lg border border-neutral-250 bg-transparent text-xs dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 outline-none font-semibold"
-              >
-                {KAZAKHSTAN_CITIES.map((c) => (
-                  <option key={c} value={c} className="dark:text-neutral-800">{c}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1 bg-transparent">
-              <label className="text-xs font-bold text-neutral-600 dark:text-neutral-450">Телефон:</label>
-              <input
-                type="text"
-                required
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                className="w-full p-2 rounded-lg border border-neutral-250 bg-transparent text-xs dark:border-neutral-700 text-neutral-805 dark:text-neutral-100 outline-none font-semibold"
-              />
-            </div>
-
-            <div className="flex gap-2 justify-end pt-2 bg-transparent">
-              <button
-                type="button"
-                onClick={() => setEditProfileMode(false)}
-                className="py-1.5 px-3 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-              >
-                Бас тарту
-              </button>
-              <button
-                type="submit"
-                className="py-1.5 px-4 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 cursor-pointer"
-              >
-                Сақтау
-              </button>
-            </div>
-          </form>
-        ) : (
-          
-          /* VIEW PROFILE PANEL */
-          <div className="space-y-6 bg-transparent">
-            <div className="flex items-center gap-4 bg-transparent">
-              <div className="relative group shrink-0 select-none">
-                {userProfile?.avatarUrl ? (
+            <div className="flex flex-col items-center text-center gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
+              <div className="relative group select-none">
+                {userProfile.avatarUrl ? (
                   <img 
                     src={userProfile.avatarUrl} 
-                    alt={userProfile.name} 
-                    referrerPolicy="no-referrer"
-                    className="w-14 h-14 rounded-2xl object-cover border-2 border-teal-500 shadow-sm"
+                    alt="" 
+                    className="w-16 h-16 rounded-full object-cover border-2 border-teal-500/25 shrink-0" 
+                    referrerPolicy="no-referrer" 
                   />
                 ) : (
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 ${AVATAR_STYLING[userProfile?.avatarId || 'avatar_1']}`}>
-                    {AVATAR_EMOJIS[userProfile?.avatarId || 'avatar_1']}
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center text-4xl border-2 border-teal-500/10 shrink-0 ${AVATAR_STYLING[userProfile.avatarId || 'avatar_1']}`}>
+                    {AVATAR_EMOJIS[userProfile.avatarId || 'avatar_1']}
                   </div>
                 )}
-                {uploadingAvatar ? (
-                  <div className="absolute inset-0 bg-black/60 rounded-2xl flex items-center justify-center">
-                    <span className="w-5 h-5 border-2 border-t-transparent border-teal-400 rounded-full animate-spin"></span>
+                
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 bg-neutral-900/40 rounded-full flex items-center justify-center">
+                    <RefreshCw className="w-5 h-5 text-white animate-spin" />
                   </div>
-                ) : (
-                  <label 
-                    htmlFor="avatar-upload-input" 
-                    className="absolute -bottom-1.5 -right-1.5 bg-teal-600 text-white p-1 rounded-full shadow-md cursor-pointer hover:bg-teal-700 transition-all border border-white dark:border-neutral-900 flex items-center justify-center scale-95"
-                    title="Профиль суретін жүктеу"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="font-extrabold text-sm text-neutral-800 dark:text-neutral-100">{userProfile.name}</h4>
+                <p className="text-[10px] text-neutral-400 uppercase font-black">{userProfile.city} қаласы</p>
+                
+                <div className="pt-1.5 flex justify-center">
+                  <label className="inline-flex items-center gap-1 px-2.5 py-1 bg-teal-50 hover:bg-teal-100 dark:bg-teal-950/40 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-400 rounded-full text-[10px] font-black cursor-pointer transition-colors border border-teal-500/15">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Суретті өзгерту</span>
+                    <input 
+                      type="file" 
+                      accept="image/png, image/jpeg, image/webp" 
+                      onChange={handleAvatarFileChange} 
+                      className="hidden" 
+                      disabled={uploadingAvatar}
+                    />
                   </label>
-                )}
-                <input 
-                  type="file" 
-                  id="avatar-upload-input" 
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleAvatarFileChange}
-                  className="hidden"
-                />
-              </div>
-              <div className="bg-transparent">
-                <h4 className="font-black text-lg text-neutral-900 dark:text-neutral-50 mb-0.5 font-sans">{userProfile?.name}</h4>
-                <div className="flex flex-col gap-1 bg-transparent">
-                  <span className="text-[10px] text-neutral-450 font-semibold uppercase tracking-wider font-sans">{userProfile?.city} тұрғыны</span>
-                  <span className={`inline-block px-2 py-0.5 text-[9px] font-extrabold rounded-md uppercase tracking-wider w-fit font-sans ${
-                    userProfile?.isAdmin 
-                      ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' 
-                      : 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300'
-                  }`}>
-                    Рөлі: {userProfile?.isAdmin ? 'Администратор' : 'Волонтер / Көрші'}
-                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Contacts details */}
-            <div className="space-y-2 border-t border-neutral-100 dark:border-neutral-800 pt-4 text-xs bg-transparent">
-              <div className="flex justify-between bg-transparent">
-                <span className="text-neutral-450">Эл.пошта:</span>
-                <span className="font-semibold text-neutral-705 dark:text-neutral-200 truncate max-w-[180px]">{userProfile?.email}</span>
+            <div className="space-y-3 pt-1">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Волонтер дәрежесі:</span>
+                <span className="font-black text-teal-600 dark:text-teal-400">{currentLevel}</span>
               </div>
-              <div className="flex justify-between bg-transparent">
-                <span className="text-neutral-450">Байланыс телефоны:</span>
-                <span className="font-semibold text-neutral-705 dark:text-neutral-200">{userProfile?.phone || 'Көрсетілмеген'}</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Сенімділік мәртебесі:</span>
+                <span className={`font-black uppercase text-[11px] px-2.5 py-0.5 rounded-lg ${penalties >= 3 ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/20' : 'bg-teal-50 text-teal-600 dark:bg-teal-950/10 dark:text-teal-400'}`}>{trustStatus}</span>
               </div>
-            </div>
-
-            {/* User Ratings Display */}
-            <div className="grid grid-cols-2 gap-4 border-t border-b border-neutral-100 dark:border-neutral-800 py-4 text-center bg-transparent">
-              <div className="border-r border-neutral-100 dark:border-neutral-800 bg-transparent">
-                <div className="text-xl font-bold text-amber-500 flex items-center justify-center gap-1 bg-transparent">
-                  <StarIcon className="w-5 h-5 fill-amber-500 text-amber-500 shrink-0" />
-                  {userProfile?.rating || 5}
-                </div>
-                <div className="text-[9px] text-neutral-400 uppercase font-black tracking-wider mt-1 font-sans">Орташа рейтинг</div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Жалпы көмек сағаты:</span>
+                <span className="font-extrabold text-teal-600 dark:text-teal-400">{totalHours} сағат</span>
               </div>
-              <div className="bg-transparent">
-                <div className="text-xl font-bold text-neutral-800 dark:text-neutral-100 bg-transparent">
-                  {userProfile?.reviewsCount || 0}
-                </div>
-                <div className="text-[9px] text-neutral-400 uppercase font-black tracking-wider mt-1 font-sans">Жалпы пікірлер</div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Қабылданған істер:</span>
+                <span className="font-bold text-neutral-800 dark:text-neutral-100">{acceptedCount} рет</span>
               </div>
-            </div>
-
-            {/* Stats numbers */}
-            <div className="space-y-2.5 text-xs text-neutral-600 dark:text-neutral-300 bg-transparent">
-              <div className="flex justify-between bg-neutral-50 dark:bg-neutral-850/30 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800">
-                <span className="font-medium text-neutral-500">Волонтерлік көмек жасадым:</span>
-                <span className="font-extrabold text-teal-650">{userProfile?.completedTasksCount || 0} рет</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Аяқталған тапсырыстар:</span>
+                <span className="font-bold text-neutral-800 dark:text-neutral-100">{completed} рет</span>
               </div>
-              <div className="flex justify-between bg-neutral-50 dark:bg-neutral-850/30 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800">
-                <span className="font-medium text-neutral-500">Қабылдаған істерім:</span>
-                <span className="font-extrabold text-neutral-700 dark:text-neutral-250">{userProfile?.acceptedTasksCount || 0} іс</span>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Айыппұл ұпайы:</span>
+                <span className={`font-bold ${penalties > 0 ? 'text-rose-500' : 'text-neutral-500'}`}>{penalties} ұпай</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-neutral-450 dark:text-neutral-400">Орташа рейтинг:</span>
+                <span className="font-bold text-amber-500">⭐ {ratingVal.toFixed(1)}</span>
               </div>
             </div>
+          </div>
 
-            {/* Volunteer Level display */}
-            <div className="bg-gradient-to-r from-amber-500/10 to-teal-500/10 dark:from-amber-500/5 dark:to-teal-500/5 p-3 rounded-xl border border-amber-500/20 dark:border-amber-500/10 flex items-center justify-between text-xs">
-              <span className="font-medium text-amber-600 dark:text-amber-400">Ерікті деңгейі:</span>
-              <span className="font-extrabold text-teal-600 dark:text-teal-400">
-                {(() => {
-                  const completed = userProfile?.completedTasksCount || 0;
-                  if (completed === 0) return 'Жаңадан бастаушы 👶';
-                  if (completed >= 1 && completed < 5) return 'Белсенді көмекші 🤝';
-                  if (completed >= 5 && completed < 15) return 'Тәжірибелі ерікті 🌟';
-                  return 'Алтын жүректі Ерікті 🏆';
-                })()}
-              </span>
-            </div>
+          <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
+            <button
+              onClick={() => setActiveTab('settings')}
+              className="w-full py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Settings className="w-4 h-4" />
+              Профильді баптау
+            </button>
+          </div>
+        </div>
 
-            {/* Buttons */}
-            <div className="flex gap-2 bg-transparent animate-in fade-in">
-              <button
-                onClick={handleOpenEditProfile}
-                className="flex-1 py-2 px-4 border border-neutral-200 dark:border-neutral-700 dark:hover:bg-neutral-800 hover:bg-neutral-100 rounded-xl text-xs font-semibold text-center text-neutral-705 dark:text-neutral-200 transition-colors cursor-pointer"
+        {/* Right column: Beautiful Bento Grid shortcuts to all other pages */}
+        <div className="lg:col-span-2 space-y-4">
+          <h3 className="text-xs font-black text-neutral-400 uppercase tracking-widest block">Негізгі Секциялар</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" id="dashboard_sections_bento_grid">
+            {shortcuts.map((sc) => (
+              <div 
+                key={sc.id}
+                onClick={() => setActiveTab(sc.tabKey)}
+                className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 hover:border-teal-300 dark:hover:border-teal-900 rounded-2xl p-5 hover:shadow-md cursor-pointer transition-all duration-350 flex justify-between gap-4 group relative overflow-hidden"
               >
-                Профильді өңдеу
-              </button>
-            </div>
-          </div>
-        )}
+                {/* Visual backdrop highlight */}
+                <div className="absolute top-0 right-0 translate-x-3 -translate-y-3 w-16 h-16 rounded-full bg-teal-500/0 group-hover:bg-teal-500/5 transition-all duration-300" />
 
-        {/* Reviews History Post logs */}
-        <div className="border-t border-neutral-150 dark:border-neutral-800 pt-5 space-y-3.5 bg-transparent">
-          <h5 className="font-extrabold text-xs text-neutral-800 dark:text-neutral-300 flex items-center gap-1.5 font-sans bg-transparent">
-            <MessageSquare className="w-4 h-4 text-amber-500" />
-            Маған қалдырылған пікірлер
-          </h5>
-
-          <div className="space-y-3 max-h-56 overflow-y-auto bg-transparent">
-            {myReviews.length === 0 ? (
-              <div className="p-4 border border-neutral-100 dark:border-neutral-800 rounded-xl text-center text-[11px] text-neutral-400 font-sans">
-                Пікірлер әлі жазылмаған
-              </div>
-            ) : (
-              myReviews.map((r) => (
-                <div key={r.id} className="p-3 bg-neutral-50 dark:bg-neutral-850/20 border border-neutral-100 dark:border-neutral-800 rounded-xl text-[11px]">
-                  <div className="flex justify-between items-start mb-1.5 bg-transparent">
-                    <div className="flex items-center gap-1.5 bg-transparent">
-                      {r.reviewerAvatarUrl ? (
-                        <img 
-                          src={r.reviewerAvatarUrl} 
-                          alt="" 
-                          className="w-4 h-4 rounded-full object-cover border border-teal-500/25 shrink-0" 
-                          referrerPolicy="no-referrer" 
-                        />
-                      ) : (
-                        <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 ${AVATAR_STYLING[r.reviewerAvatar || 'avatar_1']}`}>
-                          {AVATAR_EMOJIS[r.reviewerAvatar || 'avatar_1']}
-                        </div>
-                      )}
-                      <span className="font-bold text-neutral-700 dark:text-neutral-300">{r.reviewerName}</span>
-                    </div>
-                    <span className="font-black text-amber-400 shrink-0">⭐ {r.rating}</span>
+                <div className="flex gap-3.5 items-start">
+                  <div className="p-3 bg-neutral-50 dark:bg-neutral-850 rounded-xl group-hover:bg-teal-50 dark:group-hover:bg-teal-950/20 transition-all">
+                    {sc.icon}
                   </div>
-                  <p className="text-neutral-500 dark:text-neutral-400 leading-relaxed italic">&quot;{r.text}&quot;</p>
-                  <span className="text-[8px] text-neutral-450 block text-right mt-1 font-sans">{new Date(r.createdAt).toLocaleDateString('kk')}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Activity Tracker List Column */}
-      <div className="lg:col-span-2 space-y-6 bg-transparent">
-        
-        {/* Part 1: My Help Requests (МЕНІҢ КӨМЕК ТАПСЫРМАЛАРЫМ) */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-          <div className="bg-transparent">
-            <h3 className="text-base font-black text-neutral-900 dark:text-neutral-50 font-sans bg-transparent">Менің көмек өтініштерім</h3>
-            <p className="text-neutral-450 text-xs font-sans">Жариялаған өтініштеріңіз, олардың орындалу барысы және растау әрекеттері</p>
-          </div>
-
-          <div className="divide-y divide-neutral-100 dark:divide-neutral-800 bg-transparent">
-            {tasks.filter(t => t.creatorId === currentUser.uid).length === 0 ? (
-              <div className="p-8 text-center text-xs text-neutral-400 italic font-sans bg-transparent">Сынама ретінде бірде-бір тапсырма жасамағансыз.</div>
-            ) : (
-              tasks.filter(t => t.creatorId === currentUser.uid).map((t) => (
-                <div key={t.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1 max-w-md bg-transparent">
-                    <div className="flex items-center gap-2 bg-transparent">
-                      <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm truncate font-sans">{t.title}</span>
-                      <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full font-sans ${
-                        (t.status === TaskStatus.ACTIVE || t.status === 'new' as any) ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300' :
-                        (t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-305' :
-                        t.status === TaskStatus.COMPLETED ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
-                        'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-400'
-                      }`}>
-                        {t.status as any === 'new' ? STATUS_LABELS[TaskStatus.ACTIVE] :
-                         t.status as any === 'in_progress' ? STATUS_LABELS[TaskStatus.ACCEPTED] :
-                         STATUS_LABELS[t.status] || t.status}
-                      </span>
-                    </div>
-                    <p className="text-neutral-500 dark:text-neutral-400 truncate text-xs">{t.description}</p>
-                    {t.volunteerId && (
-                      <div className="text-[10px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-800 p-1 px-2.5 rounded-md border dark:border-neutral-800 w-fit">
-                        <span>Қабылдаған Ерікті: <strong>{t.volunteerName}</strong></span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2 shrink-0 bg-transparent">
-                    {(t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) && (
-                      <button
-                        onClick={() => handleCompleteTask(t.id)}
-                        className="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-[10px] shadow-sm flex items-center gap-1 cursor-pointer transition-all shrink-0"
-                      >
-                        <Check className="w-3.5 h-3.5 pointer-events-none" />
-                        Аяқталғанын растау
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setSelectedTask(t)}
-                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-lg text-[10px] font-bold cursor-pointer"
-                    >
-                      Толығырақ
-                    </button>
-                    {(t.status === TaskStatus.ACTIVE || t.status === 'new' as any) && (
-                      <button
-                        onClick={() => handleDeleteTask(t.id)}
-                        className="p-1 px-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg cursor-pointer font-bold text-[10px]"
-                      >
-                        Өшіру
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Part 2: My Volunteering History (МЕНІҢ ЕРІКТІ ЖҰМЫСТАРЫМ) */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-          <div className="bg-transparent">
-            <h3 className="text-base font-black text-neutral-900 dark:text-neutral-50 font-sans">Менің ерікті жұмыстарым</h3>
-            <p className="text-neutral-500 dark:text-neutral-400 text-xs font-sans">Басқа адамдарға көмектесу үшін қабылдаған іс-шараларыңыз бен тарихыңыз</p>
-          </div>
-
-          <div className="divide-y divide-neutral-105 dark:divide-neutral-800 bg-transparent">
-            {tasks.filter(t => t.volunteerId === currentUser.uid).length === 0 ? (
-              <div className="p-8 text-center text-xs text-neutral-400 italic font-sans bg-transparent">Әзірге ешқандай өтініш қабылдамағансыз. Көршілерге көмектесуді бастаңыз! 🤝</div>
-            ) : (
-              tasks.filter(t => t.volunteerId === currentUser.uid).map((t) => (
-                <div key={t.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="space-y-1 max-w-md bg-transparent">
-                    <div className="flex items-center gap-2 bg-transparent">
-                      <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm truncate font-sans">{t.title}</span>
-                      <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full font-sans ${
-                        (t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
-                        'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                      }`}>
-                        {t.status as any === 'new' ? STATUS_LABELS[TaskStatus.ACTIVE] :
-                         t.status as any === 'in_progress' ? STATUS_LABELS[TaskStatus.ACCEPTED] :
-                         STATUS_LABELS[t.status] || t.status}
-                      </span>
-                    </div>
-                    <p className="text-neutral-500 dark:text-neutral-400 text-xs truncate leading-relaxed">{t.description}</p>
-                    <div className="text-[10px] text-neutral-450 dark:text-neutral-400">Көмек иесі: <span className="font-semibold text-neutral-700 dark:text-neutral-200">{t.creatorName}</span></div>
-                  </div>
-
-                  <div className="flex gap-2 shrink-0 bg-transparent">
-                    <button
-                      onClick={() => setSelectedTask(t)}
-                      className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 rounded-lg font-bold text-[10px] text-neutral-700 dark:text-neutral-300 cursor-pointer"
-                    >
-                      Көру және байланысу
-                    </button>
-                    {(t.status === TaskStatus.ACCEPTED || t.status === 'in_progress' as any) && (
-                      <button
-                        onClick={() => handleCancelAcceptance(t.id)}
-                        className="px-3 py-1.5 border border-rose-200 text-rose-600 dark:border-rose-900/40 dark:text-rose-405 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg text-[10px] font-bold cursor-pointer"
-                      >
-                        Бас тарту
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Part 3: Participation History (ҚАТЫСУ ТАРИХЫ) */}
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-2xl p-6 space-y-4">
-          <div className="bg-transparent">
-            <h3 className="text-base font-black text-neutral-900 dark:text-neutral-50 font-sans">Қатысу тарихы</h3>
-            <p className="text-neutral-500 dark:text-neutral-400 text-xs font-sans">Сіз қабылдаған, сәтті аяқтаған немесе бас тартқан ерікті жұмыстардың толық тарихы</p>
-          </div>
-
-          <div className="divide-y divide-neutral-105 dark:divide-neutral-800 bg-transparent">
-            {loadingParticipations ? (
-              <div className="p-8 text-center text-xs text-neutral-400 italic">Жүктелуде...</div>
-            ) : participations.length === 0 ? (
-              <div className="p-8 text-center text-xs text-neutral-400 italic font-sans bg-transparent">Әзірге қатысу тарихы бос. Тапсырмалар қабылдап, белсенділігіңізді арттырыңыз! 🤝</div>
-            ) : (
-              participations.map((p) => {
-                const dateVal = p.completedAt || p.joinedAt || p.updatedAt;
-                const formattedDate = dateVal ? new Date(dateVal).toLocaleString('kk-KZ', {
-                  day: 'numeric',
-                  month: 'numeric',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                }) : '';
-
-                return (
-                  <div key={p.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                    <div className="space-y-1 max-w-md bg-transparent">
-                      <div className="flex items-center gap-2 bg-transparent">
-                        <span className="font-bold text-neutral-800 dark:text-neutral-200 text-sm font-sans">{p.taskTitle}</span>
-                        <span className={`px-2.5 py-0.5 text-[9px] font-extrabold rounded-full font-sans ${
-                          p.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300' :
-                          p.status === 'accepted' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' :
-                          'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-450'
-                        }`}>
-                          {p.status === 'completed' ? 'Аяқталды ✅' :
-                           p.status === 'accepted' ? 'Жалғасуда ⏳' :
-                           'Бас тартылды ❌'}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-sm text-neutral-855 text-neutral-800 dark:text-neutral-150 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                        {sc.title}
+                      </h4>
+                      {sc.tag && (
+                        <span className="px-2 py-0.5 text-[8.5px] font-black rounded-md bg-amber-100 dark:bg-amber-950/30 text-amber-800 dark:text-amber-450 animate-pulse">
+                          {sc.tag}
                         </span>
-                      </div>
-                      <div className="text-[10px] text-neutral-450 dark:text-neutral-400">
-                        {p.status === 'completed' ? 'Мақұлданған уақыты' : 'Қосылған уақыты'}: <span className="font-semibold text-neutral-600 dark:text-neutral-350">{formattedDate}</span>
-                      </div>
+                      )}
                     </div>
+                    <p className="text-[11px] text-neutral-450 dark:text-neutral-500 leading-normal max-w-[220px]">
+                      {sc.desc}
+                    </p>
                   </div>
-                );
-              })
-            )}
+                </div>
+
+                <div className="self-center text-neutral-400 group-hover:text-teal-600 dark:text-neutral-600 dark:group-hover:text-teal-400 transition-all translate-x-0 group-hover:translate-x-1.5 shrink-0">
+                  <ChevronRight className="w-5 h-5" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
       </div>
+
+      {/* Reviews Section kept beautiful at bottom of main Dashboard view */}
+      {myReviews.length > 0 && (
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl p-6 space-y-4 shadow-xs">
+          <h3 className="font-extrabold text-sm text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+            <MessageSquare className="w-5 h-5 text-amber-500 fill-amber-500/10" />
+            Көршілерден алған соңғы пікірлеріңіз
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {myReviews.map((r) => (
+              <div key={r.id} className="p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-100 dark:border-neutral-850 rounded-2xl text-xs space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    {r.reviewerAvatarUrl ? (
+                      <img 
+                        src={r.reviewerAvatarUrl} 
+                        alt="" 
+                        className="w-7 h-7 rounded-full object-cover shrink-0" 
+                        referrerPolicy="no-referrer" 
+                      />
+                    ) : (
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] shrink-0 border border-neutral-100 dark:border-neutral-800 ${AVATAR_STYLING[r.reviewerAvatar || 'avatar_1']}`}>
+                        {AVATAR_EMOJIS[r.reviewerAvatar || 'avatar_1']}
+                      </div>
+                    )}
+                    <span className="font-bold text-neutral-700 dark:text-neutral-300">{r.reviewerName}</span>
+                  </div>
+                  <span className="font-black text-amber-500">⭐ {r.rating}</span>
+                </div>
+                <p className="text-neutral-500 dark:text-neutral-400 italic font-medium">
+                  &quot;{r.text}&quot;
+                </p>
+                <span className="text-[9px] text-neutral-400 block text-right mt-1 font-sans">{new Date(r.createdAt).toLocaleDateString('kk-KZ')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
     </div>
   );

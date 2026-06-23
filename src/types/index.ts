@@ -8,6 +8,9 @@ export enum TaskCategory {
   TECHNOLOGY = 'technology',
   HEALTHCARE = 'healthcare',
   ECOLOGY = 'ecology',
+  SPORT = 'sport',
+  ANIMALS = 'animals',
+  CHARITY = 'charity',
   OTHER = 'other'
 }
 
@@ -19,6 +22,9 @@ export const CATEGORY_LABELS: Record<TaskCategory, string> = {
   [TaskCategory.TECHNOLOGY]: 'Технологиялық көмек',
   [TaskCategory.HEALTHCARE]: 'Медициналық көмек',
   [TaskCategory.ECOLOGY]: 'Экологиялық көмек',
+  [TaskCategory.SPORT]: 'Спорттық іс-шаралар',
+  [TaskCategory.ANIMALS]: 'Жануарларға көмек',
+  [TaskCategory.CHARITY]: 'Қайырымдылық',
   [TaskCategory.OTHER]: 'Басқа көмек'
 };
 
@@ -64,6 +70,10 @@ export interface UserProfile {
   reviewsCount?: number;
   completedTasksCount?: number;
   acceptedTasksCount?: number;
+  totalVolunteerHours?: number;
+  penaltyPoints?: number;
+  trustStatus?: string;
+  favoriteTaskIds?: string[];
   isAdmin: boolean;
   isBanned: boolean;
   createdAt: string;
@@ -78,6 +88,7 @@ export interface Task {
   deadline: string;
   startDateTime: string;
   endDateTime: string;
+  durationHours?: number;
   status: TaskStatus;
   city: string;
   creatorId: string;
@@ -101,6 +112,10 @@ export interface Task {
   latitude?: number | null;
   longitude?: number | null;
   locationSource?: 'manual' | 'geolocation' | null;
+  reportPhotoUrl?: string;
+  reportsCount?: number;
+  reportedByUserIds?: string[];
+  notifiedStartingSoon?: boolean;
 }
 
 export interface Participation {
@@ -150,6 +165,15 @@ export interface Report {
   reason: string;
   status: 'pending' | 'resolved';
   createdAt: string;
+}
+
+export interface Certificate {
+  id: string;
+  userId: string;
+  userName: string;
+  totalHours: number;
+  issuedAt: string;
+  certificateId: string;
 }
 
 export const KAZAKHSTAN_CITIES = [

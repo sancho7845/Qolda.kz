@@ -195,7 +195,7 @@ export default function CreateTaskPage({
         setUploadProgress(1);
         const uniqueFileName = `${Date.now()}_${attachmentFile.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
         const fileRef = ref(storage, `tasks_attachments/${uniqueFileName}`);
-        const uploadTask = uploadBytesResumable(fileRef, attachmentFile);
+        const uploadTask = uploadBytesResumable(fileRef, attachmentFile, { contentType: attachmentFile.type });
 
         await new Promise<void>((resolve, reject) => {
           uploadTask.on(

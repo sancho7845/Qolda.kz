@@ -16,7 +16,9 @@ import {
   getUserReviews,
   deleteTask,
   subscribeTasks,
-  checkAndApplyExpirations
+  checkAndApplyExpirations,
+  checkAndNotifyStartingSoon,
+  toggleFavoriteTask
 } from './services/dbService';
 import { 
   Task, 
@@ -61,6 +63,14 @@ import AllTasksPage from './pages/AllTasksPage';
 import MapViewPage from './pages/MapViewPage';
 import CreateTaskPage from './pages/CreateTaskPage';
 import MyDashboardPage from './pages/MyDashboardPage';
+import AchievementsPage from './pages/AchievementsPage';
+import CertificatesPage from './pages/CertificatesPage';
+import NotificationsPage from './pages/NotificationsPage';
+import HistoryPage from './pages/HistoryPage';
+import StatisticsPage from './pages/StatisticsPage';
+import LeaderboardPage from './pages/LeaderboardPage';
+import SettingsPage from './pages/SettingsPage';
+import ReportsPage from './pages/ReportsPage';
 
 // Admin Panel component
 import AdminPanel from './components/AdminPanel';
@@ -77,14 +87,15 @@ function QoldaApp() {
     signOut, 
     sendEmailVerification, 
     checkEmailVerificationStatus,
-    updateUserBio 
+    updateUserBio,
+    refreshProfile
   } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // Tasks States
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all_tasks' | 'map_view' | 'my_dashboard' | 'create_task' | 'admin'>('all_tasks');
+  const [activeTab, setActiveTab] = useState<'all_tasks' | 'map_view' | 'my_dashboard' | 'create_task' | 'admin' | 'achievements' | 'certificates' | 'notifications' | 'history' | 'statistics' | 'leaderboard' | 'settings' | 'reports'>('all_tasks');
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   // Filter States
@@ -97,6 +108,7 @@ function QoldaApp() {
   // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPlatformDropdown, setShowPlatformDropdown] = useState(false);
 
   // Review & Report Modal triggers
   const [reviewModalTarget, setReviewModalTarget] = useState<{ id: string; name: string; category: string } | null>(null);
@@ -156,6 +168,7 @@ function QoldaApp() {
       const allTasks = await getTasks(!!userProfile?.isAdmin);
       const withExpirations = await checkAndApplyExpirations(allTasks);
       setTasks(withExpirations);
+      await checkAndNotifyStartingSoon(withExpirations);
     } catch (e) {
       console.error(e);
     } finally {
@@ -186,6 +199,7 @@ function QoldaApp() {
           const withExpirations = await checkAndApplyExpirations(allTasks);
           setTasks(withExpirations);
           setLoadingTasks(false);
+          await checkAndNotifyStartingSoon(withExpirations);
         },
         (err) => {
           console.error('Real-time listener failed:', err);
@@ -196,8 +210,11 @@ function QoldaApp() {
 
       loadNotificationsAndReviews();
       
-      const interval = setInterval(() => {
+      const interval = setInterval(async () => {
         loadNotificationsAndReviews();
+        if (tasks.length > 0) {
+          await checkAndNotifyStartingSoon(tasks);
+        }
       }, 10000);
 
       return () => {
@@ -207,7 +224,23 @@ function QoldaApp() {
         }
       };
     }
-  }, [currentUser, userProfile?.isAdmin]);
+  }, [currentUser, userProfile?.isAdmin, tasks.length]);
+
+  const handleToggleFavorite = async (taskId: string) => {
+    if (!userProfile) {
+      alert('Алдымен жүйеге кіріңіз!');
+      return;
+    }
+    try {
+      await toggleFavoriteTask(userProfile.uid, taskId);
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Таңдаулыны өзгерту сәтсіз аяқталды: ' + String(err));
+    }
+  };
 
   // Task operation triggers
   const handleAcceptTask = async (taskId: string) => {
@@ -504,6 +537,74 @@ function QoldaApp() {
                 >
                   Жеке бөлме
                 </button>
+
+                <div className="relative">
+                  <button
+                    onClick={() => setShowPlatformDropdown(!showPlatformDropdown)}
+                    className={`px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                      [
+                        'achievements', 'certificates', 'notifications', 'history',
+                        'statistics', 'leaderboard', 'settings', 'reports'
+                      ].includes(activeTab)
+                        ? 'bg-teal-600 text-white shadow-sm font-black' 
+                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-extrabold'
+                    }`}
+                  >
+                    Мүмкіндіктер ▾
+                  </button>
+                  {showPlatformDropdown && (
+                    <div className="absolute top-12 left-0 w-52 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-50 p-1.5 text-xs text-left animate-in slide-in-from-top-2 duration-150">
+                      <button
+                        onClick={() => { setActiveTab('achievements'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        🏅 Жетістіктер
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('certificates'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        📄 Сертификаттар
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('notifications'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        🔔 Хабарламалар
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('history'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        ⏳ Қатысу тарихы
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('statistics'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        📊 Статистика
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('leaderboard'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        🏆 Үздіктер
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('settings'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        ⚙️ Баптаулар
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('reports'); setShowPlatformDropdown(false); }}
+                        className="w-full text-left p-2 rounded-xl hover:bg-neutral-50 dark:hover:bg-neutral-800 font-bold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        ⚠️ Менің шағымдарым
+                      </button>
+                    </div>
+                  )}
+                </div>
                 {userProfile?.isAdmin && (
                   <button
                     onClick={() => { setActiveTab('admin'); setSelectedTask(null); }}
@@ -660,6 +761,58 @@ function QoldaApp() {
                 >
                   Жеке кабинет
                 </button>
+
+                {/* New Platform pages on mobile */}
+                <div className="pl-4 border-l border-neutral-100 dark:border-neutral-800 space-y-1 my-1">
+                  <button
+                    onClick={() => { setActiveTab('achievements'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'achievements' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    🏅 Жетістіктер мен медальдар
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('certificates'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'certificates' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    📄 Сертификаттар
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('notifications'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'notifications' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    🔔 Хабарламалар
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('history'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'history' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    ⏳ Қатысу тарихы
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('statistics'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'statistics' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    📊 Жеке статистика
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('leaderboard'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'leaderboard' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    🏆 Үздік волонтерлер
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('settings'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'settings' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    ⚙️ Баптаулар
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('reports'); setSelectedTask(null); setMobileMenuOpen(false); }}
+                    className={`w-full text-left py-1.5 px-2 rounded-md flex items-center gap-1.5 cursor-pointer ${activeTab === 'reports' ? 'text-teal-600 dark:text-teal-400 font-black' : 'text-neutral-500 hover:text-neutral-805 dark:text-neutral-400 dark:hover:text-neutral-105'}`}
+                  >
+                    ⚠️ Менің шағымдарым
+                  </button>
+                </div>
                 {userProfile?.isAdmin && (
                   <button
                     onClick={() => { setActiveTab('admin'); setSelectedTask(null); setMobileMenuOpen(false); }}
@@ -740,6 +893,7 @@ function QoldaApp() {
                 setSelectedTask={setSelectedTask}
                 setReportModalTarget={setReportModalTarget}
                 setActiveTab={setActiveTab}
+                onToggleFavorite={handleToggleFavorite}
               />
             )}
 
@@ -781,10 +935,67 @@ function QoldaApp() {
                 setSelectedTask={setSelectedTask}
                 updateUserBio={updateUserBio}
                 loadTasks={loadTasks}
+                setActiveTab={setActiveTab}
+                unreadNotificationsCount={notifications.filter(n => !n.isRead).length}
               />
             )}
 
-            {/* 5. ADMIN PANEL PANEL */}
+            {/* 5. NEW PLATFORM PAGES */}
+            {activeTab === 'achievements' && (
+              <AchievementsPage userProfile={userProfile} />
+            )}
+
+            {activeTab === 'certificates' && (
+              <CertificatesPage userProfile={userProfile} />
+            )}
+
+            {activeTab === 'notifications' && (
+              <NotificationsPage 
+                notifications={notifications} 
+                currentUser={currentUser} 
+                loadNotifications={loadNotificationsAndReviews} 
+              />
+            )}
+
+            {activeTab === 'history' && (
+              <HistoryPage 
+                userProfile={userProfile} 
+                currentUser={currentUser} 
+                tasks={tasks} 
+                handleCancelAcceptance={handleCancelAcceptance}
+                handleCompleteTask={handleCompleteTask}
+                handleDeleteTask={handleDeleteTask}
+                setSelectedTask={setSelectedTask}
+                setActiveTab={setActiveTab}
+              />
+            )}
+
+            {activeTab === 'statistics' && (
+              <StatisticsPage 
+                userProfile={userProfile} 
+                tasks={tasks} 
+                currentUser={currentUser} 
+              />
+            )}
+
+            {activeTab === 'leaderboard' && (
+              <LeaderboardPage />
+            )}
+
+            {activeTab === 'settings' && (
+              <SettingsPage 
+                userProfile={userProfile} 
+                currentUser={currentUser} 
+                updateUserBio={updateUserBio} 
+                loadTasks={loadTasks} 
+              />
+            )}
+
+            {activeTab === 'reports' && (
+              <ReportsPage currentUser={currentUser} />
+            )}
+
+            {/* 6. ADMIN PANEL PANEL */}
             {activeTab === 'admin' && userProfile?.isAdmin && (
               <AdminPanel />
             )}

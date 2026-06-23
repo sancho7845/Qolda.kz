@@ -37,7 +37,7 @@ export default function AdminPanel() {
   const [reports, setReports] = useState<Report[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [activeTab, setActiveTab] = useState<'stats' | 'reports' | 'users'>('stats');
+  const [activeTab, setActiveTab] = useState<'stats' | 'reports' | 'users' | 'expired_tasks'>('stats');
   const [loading, setLoading] = useState(true);
   const [selectedUserForFiles, setSelectedUserForFiles] = useState<UserProfile | null>(null);
 
@@ -203,6 +203,16 @@ export default function AdminPanel() {
           }`}
         >
           Пайдаланушылар базасы
+        </button>
+        <button
+          onClick={() => setActiveTab('expired_tasks')}
+          className={`px-4 py-2.5 text-xs font-bold rounded-xl transition-all ${
+            activeTab === 'expired_tasks' 
+              ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border' 
+              : 'text-neutral-605 text-neutral-650 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800'
+          }`}
+        >
+          Өткен тапсырмалар (Expired)
         </button>
       </div>
 
@@ -612,6 +622,88 @@ export default function AdminPanel() {
                                 ) : (
                                   <span className="text-[10px] text-neutral-400 shrink-0">Қол тигізусіз</span>
                                 )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'expired_tasks' && (
+            <div className="space-y-4">
+              <div className="p-5 bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl shadow-xs">
+                <h3 className="text-sm font-black text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5 font-sans">
+                  <span>Өткен және уақыты біткен тапсырмалар (Expired Tasks)</span>
+                </h3>
+                <p className="text-neutral-550 dark:text-neutral-400 text-xs mt-1">
+                  Екі жақты уақыт жүйесі бойынша аяқталу уақыты (endDateTime) өтіп кеткендіктен, автоматты түрде мерзімі өткен деп танылған тапсырмалар базасы.
+                </p>
+              </div>
+
+              {tasks.filter(t => t.status === 'expired' || t.status === 'expired' as any).length === 0 ? (
+                <div className="py-12 bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl text-center text-xs text-neutral-400 italic font-sans shadow-xs">
+                  Жүйеде мерзімі өткен тапсырмалар әзірге жоқ.
+                </div>
+              ) : (
+                <div className="bg-white dark:bg-neutral-900 border border-neutral-150 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-neutral-500 dark:text-neutral-400">
+                      <thead className="text-[10px] bg-neutral-50 dark:bg-neutral-950/40 uppercase tracking-wider text-neutral-400 dark:text-neutral-500 border-b border-neutral-100 dark:border-neutral-800">
+                        <tr>
+                          <th className="px-5 py-3 font-extrabold">Тапсырма атауы</th>
+                          <th className="px-5 py-3 font-extrabold">Санат</th>
+                          <th className="px-5 py-3 font-extrabold">Басталу уақыты</th>
+                          <th className="px-5 py-3 font-extrabold">Аяқталу уақыты</th>
+                          <th className="px-5 py-3 font-extrabold">Ұзақтығы</th>
+                          <th className="px-5 py-3 font-extrabold">Жариялаушы</th>
+                          <th className="px-5 py-3 font-extrabold text-right">Әрекеттер</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {tasks.filter(t => t.status === 'expired' || t.status === 'expired' as any).map((task) => {
+                          return (
+                            <tr key={task.id} className="hover:bg-neutral-50/50 dark:hover:bg-neutral-950/10 transition-colors">
+                              <td className="px-5 py-4 font-bold text-neutral-800 dark:text-neutral-200">
+                                {task.title}
+                              </td>
+                              <td className="px-5 py-4">
+                                <span className="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-lg font-semibold text-neutral-600 dark:text-neutral-350">
+                                  {task.category}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4 font-mono text-[11px]">
+                                {task.startDateTime ? new Date(task.startDateTime).toLocaleString('kk-KZ') : '-'}
+                              </td>
+                              <td className="px-5 py-4 font-mono text-[11px] text-red-600 dark:text-red-400 font-bold">
+                                {task.endDateTime ? new Date(task.endDateTime).toLocaleString('kk-KZ') : '-'}
+                              </td>
+                              <td className="px-5 py-4 font-mono font-bold text-neutral-700 dark:text-neutral-300">
+                                {task.durationHours ? `${task.durationHours} сағат` : '-'}
+                              </td>
+                              <td className="px-5 py-4">
+                                {task.creatorName}
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                <button
+                                  onClick={async () => {
+                                    if (!window.confirm('Бұл ескі/өткен тапсырманы өшіргіңіз келеді ме?')) return;
+                                    try {
+                                      await deleteTask(task.id);
+                                      alert('Тапсырма өшірілді.');
+                                      loadAdminData();
+                                    } catch (err) {
+                                      alert('Қате: ' + String(err));
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950/20 dark:hover:bg-rose-900/40 dark:text-rose-455 rounded-lg font-bold"
+                                >
+                                  Өшіру
+                                </button>
                               </td>
                             </tr>
                           );

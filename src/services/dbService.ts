@@ -15,7 +15,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, auth } from './firebase';
-import { Task, TaskCategory, TaskPriority, TaskStatus, UserProfile, Review, Notification, Report } from '../types';
+import { Task, TaskCategory, TaskPriority, TaskStatus, UserProfile, Review, Notification, Report, Certificate } from '../types';
 
 // generate random stable ID helper
 function generateId() {
@@ -46,6 +46,11 @@ export async function createTask(
   const taskPath = `tasks/${taskId}`;
   const now = new Date().toISOString();
 
+  const start = new Date(startDateTime);
+  const end = new Date(endDateTime);
+  const diffMs = end.getTime() - start.getTime();
+  const calculatedDuration = diffMs > 0 ? Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 : 2;
+
   const task: Task = {
     id: taskId,
     title,
@@ -55,6 +60,7 @@ export async function createTask(
     deadline,
     startDateTime,
     endDateTime,
+    durationHours: calculatedDuration,
     status: TaskStatus.ACTIVE,
     city,
     creatorId: creator.uid,
@@ -77,7 +83,9 @@ export async function createTask(
     address: address || '',
     latitude: latitude ?? null,
     longitude: longitude ?? null,
-    locationSource: locationSource ?? null
+    locationSource: locationSource ?? null,
+    reportsCount: 0,
+    reportedByUserIds: []
   };
 
   try {
@@ -367,6 +375,7 @@ export async function cancelTaskAcceptance(taskId: string): Promise<void> {
       volunteerId: null,
       volunteerName: null,
       volunteerAvatar: null,
+      volunteerAvatarUrl: null,
       updatedAt: now
     });
 
@@ -386,14 +395,31 @@ export async function cancelTaskAcceptance(taskId: string): Promise<void> {
       'system'
     );
 
-    // Decrement accepted count for volunteer
+    // Decrement accepted count for volunteer & apply safety penalty points!
     const volRef = doc(db, 'users', prevVolunteerId);
     const volSnap = await getDoc(volRef);
     if (volSnap.exists()) {
       const volData = volSnap.data() as UserProfile;
+      const currentPenalty = volData.penaltyPoints || 0;
+      const newPenalty = currentPenalty + 1;
+      const shouldBan = newPenalty >= 5;
+      const trustStatus = newPenalty >= 3 ? 'Төмен сенімді' : 'Жоғары сенімді';
+
       await updateDoc(volRef, {
-        acceptedTasksCount: Math.max(0, (volData.acceptedTasksCount || 1) - 1)
+        acceptedTasksCount: Math.max(0, (volData.acceptedTasksCount || 1) - 1),
+        penaltyPoints: newPenalty,
+        trustStatus,
+        isBanned: shouldBan ? true : (volData.isBanned || false)
       });
+
+      // Send penalty system warning notification
+      await createNotification(
+        prevVolunteerId,
+        'Штраф ұпайы есептелді! ⚠️',
+        `Сенімділік ережесін бұзып, тапсырмадан бас тартқаныңыз үшін сізге 1 штраф ұпайы берілді. Жалпы штрафтарыңыз: ${newPenalty}/5. (5 штрафта тіркелгі бұғатталады)`,
+        taskId,
+        'system'
+      );
     }
 
   } catch (error) {
@@ -402,7 +428,7 @@ export async function cancelTaskAcceptance(taskId: string): Promise<void> {
 }
 
 // Complete helper request (Confirm completion by creator)
-export async function completeTask(taskId: string): Promise<void> {
+export async function completeTask(taskId: string, reportPhotoUrl?: string): Promise<void> {
   const taskPath = `tasks/${taskId}`;
   const now = new Date().toISOString();
   try {
@@ -421,10 +447,21 @@ export async function completeTask(taskId: string): Promise<void> {
       throw new Error('Тек орындалып жатқан белсенді тапсырмаларды ғана аяқтауға болады');
     }
 
-    await updateDoc(taskDocRef, {
+    const start = new Date(task.startDateTime);
+    const end = new Date(task.endDateTime);
+    const diffMs = end.getTime() - start.getTime();
+    const calculatedDuration = diffMs > 0 ? Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 : 2;
+    const taskHours = task.durationHours || calculatedDuration;
+
+    const fieldsToUpdate: any = {
       status: TaskStatus.COMPLETED,
       updatedAt: now
-    });
+    };
+    if (reportPhotoUrl) {
+      fieldsToUpdate.reportPhotoUrl = reportPhotoUrl;
+    }
+
+    await updateDoc(taskDocRef, fieldsToUpdate);
 
     // Set participation to completed
     const participationId = `${task.volunteerId}_${taskId}`;
@@ -434,13 +471,21 @@ export async function completeTask(taskId: string): Promise<void> {
       updatedAt: now
     }).catch(() => {});
 
-    // Increment completed tasks count for volunteer
+    // Increment completed tasks count & volunteer hours for volunteer
     const volunteerRef = doc(db, 'users', task.volunteerId);
     const volSnap = await getDoc(volunteerRef);
     if (volSnap.exists()) {
       const volData = volSnap.data() as UserProfile;
+      const prevHours = volData.totalVolunteerHours || 0;
+      const newHours = prevHours + taskHours;
+      const newCompletedCount = (volData.completedTasksCount || 0) + 1;
+      const penalty = volData.penaltyPoints || 0;
+      const trustStatus = penalty >= 3 ? 'Төмен сенімді' : 'Жоғары сенімді';
+
       await updateDoc(volunteerRef, {
-        completedTasksCount: (volData.completedTasksCount || 0) + 1
+        completedTasksCount: newCompletedCount,
+        totalVolunteerHours: newHours,
+        trustStatus: trustStatus
       });
     }
 
@@ -448,13 +493,40 @@ export async function completeTask(taskId: string): Promise<void> {
     await createNotification(
       task.volunteerId,
       'Тапсырма аяқталды! 🎉',
-      `Құттықтаймыз! Көмек сұраушы сіздің "${task.title}" тапсырмасын толығымен сәтті аяқтағаныңызды растады. Көмегіңіз үшін мың алғыс!`,
+      `Құттықтаймыз! Көмек сұраушы сіздің "${task.title}" тапсырмаңызды толығымен сәтті аяқтағаныңызды растады. Сізге ${taskHours} сағат қосылды. Көмегіңіз үшін мың алғыс!`,
       taskId,
       'task_completed'
     );
 
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, taskPath);
+  }
+}
+
+// Toggle Favorite Task Helper
+export async function toggleFavoriteTask(userId: string, taskId: string): Promise<boolean> {
+  const userRef = doc(db, 'users', userId);
+  try {
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return false;
+    const userData = userSnap.data() as UserProfile;
+    const favoriteTaskIds = userData.favoriteTaskIds || [];
+    let updatedFavs: string[] = [];
+    let isAdded = false;
+
+    if (favoriteTaskIds.includes(taskId)) {
+      updatedFavs = favoriteTaskIds.filter(id => id !== taskId);
+      isAdded = false;
+    } else {
+      updatedFavs = [...favoriteTaskIds, taskId];
+      isAdded = true;
+    }
+
+    await updateDoc(userRef, { favoriteTaskIds: updatedFavs });
+    return isAdded;
+  } catch (error) {
+    console.error('Failed to toggle favorite task:', error);
+    return false;
   }
 }
 
@@ -654,19 +726,34 @@ export async function submitReport(
   const reportId = generateId();
   const reportPath = `reports/${reportId}`;
   
-  const report: Report = {
-    id: reportId,
-    reporterId,
-    reporterName,
-    targetType,
-    targetId,
-    targetLabel,
-    reason,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-
   try {
+    // Check for duplicate reports by the same user on the same task target
+    if (targetType === 'task') {
+      const reportsRefForCheck = collection(db, 'reports');
+      const qDup = query(
+        reportsRefForCheck,
+        where('reporterId', '==', reporterId),
+        where('targetType', '==', 'task'),
+        where('targetId', '==', targetId)
+      );
+      const dupSnap = await getDocs(qDup);
+      if (!dupSnap.empty) {
+        throw new Error('Сіз бұл тапсырмаға шағым беріп қойғансыз!');
+      }
+    }
+
+    const report: Report = {
+      id: reportId,
+      reporterId,
+      reporterName,
+      targetType,
+      targetId,
+      targetLabel,
+      reason,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
     await setDoc(doc(db, 'reports', reportId), report);
 
     if (targetType === 'task') {
@@ -895,5 +982,112 @@ export async function checkAndApplyExpirations(tasks: Task[]): Promise<Task[]> {
   } catch (err) {
     console.warn('Auto-expiration processor failed:', err);
     return tasks;
+  }
+}
+
+// Automatically check and notify starting soon tasks
+export async function checkAndNotifyStartingSoon(tasks: Task[]): Promise<void> {
+  const now = new Date();
+  try {
+    await Promise.all(
+      tasks.map(async (task) => {
+        if (
+          task.startDateTime &&
+          task.status !== TaskStatus.EXPIRED &&
+          task.status !== TaskStatus.COMPLETED &&
+          task.status !== TaskStatus.BLOCKED &&
+          task.status !== TaskStatus.PENDING_REVIEW &&
+          !task.notifiedStartingSoon
+        ) {
+          const startTime = new Date(task.startDateTime);
+          const diffMs = startTime.getTime() - now.getTime();
+          const diffHours = diffMs / (1000 * 60 * 60);
+
+          // If starting in exactly 1 hour or less
+          if (diffHours > 0 && diffHours <= 1.0) {
+            try {
+              const taskDocRef = doc(db, 'tasks', task.id);
+              await updateDoc(taskDocRef, {
+                notifiedStartingSoon: true
+              });
+
+              // Notify Creator
+              if (task.creatorId) {
+                await createNotification(
+                  task.creatorId,
+                  '📍 Тапсырма басталуына 1 сағат қалды!',
+                  `Сіздің "${task.title}" атты көмек өтінішіңіз орнатылған жоспар бойынша жақын арада (1 сағат ішінде) басталады.`,
+                  task.id,
+                  'system'
+                );
+              }
+
+              // Notify Volunteer
+              if (task.volunteerId) {
+                await createNotification(
+                  task.volunteerId,
+                  '🤝 Тапсырма басталуына 1 сағат қалды!',
+                  `Сіз қабылдаған "${task.title}" атты тапсырма сәйкесінше 1 сағат ішінде басталады. Уақытында дайын болып, көмек көрсетуге ниеттенгеніңіз үшін рақмет!`,
+                  task.id,
+                  'task_accepted'
+                );
+              }
+            } catch (err) {
+              console.warn('Failed to notify starting soon for task:', task.id, err);
+            }
+          }
+        }
+      })
+    );
+  } catch (err) {
+    console.warn('checkAndNotifyStartingSoon error:', err);
+  }
+}
+
+// --- CERTIFICATES SERVICES ---
+
+export async function saveCertificate(userId: string, userName: string, totalHours: number): Promise<Certificate> {
+  const id = generateId();
+  const certId = "CERT-" + Math.floor(100000 + Math.random() * 900000);
+  const docPath = `certificates/${id}`;
+  const now = new Date().toISOString();
+  
+  const cert: Certificate = {
+    id,
+    userId,
+    userName,
+    totalHours,
+    issuedAt: now,
+    certificateId: certId
+  };
+
+  try {
+    await setDoc(doc(db, 'certificates', id), cert);
+    return cert;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, docPath);
+  }
+}
+
+export async function getUserCertificates(userId: string): Promise<Certificate[]> {
+  const path = 'certificates';
+  if (!userId || !auth.currentUser) return [];
+
+  try {
+    const q = query(
+      collection(db, 'certificates'),
+      where('userId', '==', userId)
+    );
+    const snap = await getDocs(q);
+    const list: Certificate[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as Certificate);
+    });
+    // Sort descending by issuedAt (latest first)
+    list.sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime());
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return [];
   }
 }

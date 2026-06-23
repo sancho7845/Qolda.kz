@@ -67,6 +67,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             reviewsCount: 0,
             completedTasksCount: 0,
             acceptedTasksCount: 0,
+            totalVolunteerHours: 0,
+            penaltyPoints: 0,
+            trustStatus: 'Жоғары сенімді',
             isAdmin: isBootstrappedAdmin,
             isBanned: false,
             createdAt: new Date().toISOString()
@@ -111,6 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               reviewsCount: 0,
               completedTasksCount: 0,
               acceptedTasksCount: 0,
+              totalVolunteerHours: 0,
+              penaltyPoints: 0,
+              trustStatus: 'Жоғары сенімді',
               isAdmin: isBootstrappedAdmin,
               isBanned: false,
               createdAt: new Date().toISOString()
@@ -165,6 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       reviewsCount: 0,
       completedTasksCount: 0,
       acceptedTasksCount: 0,
+      totalVolunteerHours: 0,
+      penaltyPoints: 0,
+      trustStatus: 'Жоғары сенімді',
       isAdmin: isBootstrappedAdmin,
       isBanned: false,
       createdAt: new Date().toISOString()
